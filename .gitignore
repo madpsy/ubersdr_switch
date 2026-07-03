@@ -1,0 +1,6 @@
+# Regenerable analysis artifacts (rebuild with scripts/analysis/mkelf.py + objdump)
+/build/
+
+# Python
+__pycache__/
+*.pyc
