@@ -148,9 +148,10 @@ set up its own Access Point that you use to configure the network credentials.
 | **AP SSID** | `AutoConnectAP` |
 | **Portal URL / IP** | `http://192.168.4.1` |
 
-> Note: the manual writes "pres" (press), "AutoConect" and similar typos; these are
-> reproduced above where they appear literally on the device's OLED, and corrected in
-> the surrounding prose.
+> Note: the original manual and stock firmware write "pres" (press), "AutoConect" and
+> similar typos; these are reproduced above where they appeared literally on the stock
+> device's OLED. **The replica firmware corrects these typos** (e.g. it displays
+> "press ERASE for erase stored information").
 
 ---
 

@@ -10,7 +10,8 @@ The system has:
 - **5 antenna inputs** (SMA): ANT1–ANT5
 - **1 receiver/radio output** (SMA): to the RX
 - **12 VDC power input** (0.5 A) for the relay coils, regulated down for logic
-- an **ESP8266** driving a **74HCT138** decoder → **5 relays** (RL1–RL5)
+- an **ESP8266** (Heltec WiFi Kit 8 / HTIT-W8266, with an on-board 0.91" 128×32
+  SSD1306 OLED) driving a **74HCT138** decoder → **5 relays** (RL1–RL5)
 
 ---
 
@@ -27,8 +28,9 @@ below).
         │                                               │
         │              ┌───────────────┐                │
         │              │   OLED  ANT:n  │       ( O )  UP   ← GPIO3
-        │              │   (SSD1306)    │                │
-        │              └───────────────┘       ( O )  DOWN ← GPIO1
+        │              │  0.91" 128×32  │                │
+        │              │   (SSD1306)    │       ( O )  DOWN ← GPIO1
+        │              └───────────────┘                │
         │                                               │
         │                  [ FRONT ]                    │
         └─────────────────────────────────────────────┘
@@ -80,10 +82,10 @@ flowchart LR
     end
 
     subgraph MCU["ESP8266 module"]
-        ESP["ESP8266<br/>(Wemos D1 class)"]
-        OLED["I2C OLED<br/>(SSD1306)"]
+        ESP["ESP8266<br/>(Heltec WiFi Kit 8 / HTIT-W8266)"]
+        OLED["I2C OLED<br/>(0.91&quot; 128×32 SSD1306)"]
         BTN["Buttons:<br/>UP / DOWN / SET / ERASE"]
-        ESP -- "GPIO4 SDA / GPIO5 SCL" --> OLED
+        ESP -- "GPIO4 SDA / GPIO5 SCL<br/>GPIO16 RESET" --> OLED
         BTN -- "GPIO0/1/2/3" --> ESP
     end
 
@@ -215,8 +217,9 @@ Radio port; de-energised relays route straight through to the next stage.
 | GPIO1  | BTN_DOWN | DOWN button → GND (active low) |
 | GPIO2  | BTN_ERASE | ERASE button → GND (active low) |
 | GPIO3  | BTN_UP | UP button → GND (active low) |
-| GPIO4  | I2C_SDA | OLED SDA |
-| GPIO5  | I2C_SCL | OLED SCL |
+| GPIO4  | I2C_SDA | OLED SDA (0.91" 128×32 SSD1306) |
+| GPIO5  | I2C_SCL | OLED SCL (0.91" 128×32 SSD1306) |
+| GPIO16 | OLED_RST | OLED reset (Heltec WiFi Kit 8) |
 | 3V3 / GND | power | from regulator |
 
 ### 74HCT138 (3-to-8 decoder)
@@ -264,10 +267,10 @@ legible in the photo; "≈" / "?" marks a best-effort read.
 
 | Ref | Type | Value / part | Where / purpose |
 |-----|------|--------------|-----------------|
-| **U (MCU)** | MCU board | ESP8266 (Wemos D1 / NodeMCU-class) | controller |
+| **U (MCU)** | MCU board | **Heltec WiFi Kit 8 (HTIT-W8266)** ESP8266 | controller (on-board OLED) |
 | **U (dec.)** | Logic IC | **74HCT138** | 3-to-8 decoder (antenna select) |
 | **U (reg.)** | Regulator | **AMS1117** (Vin / Vout / GND) | 12 V → 3.3 V for logic |
-| **U (disp.)** | Display | SSD1306 OLED (I²C) | status display |
+| **U (disp.)** | Display | 0.91" 128×32 **SSD1306** OLED (I²C, reset GPIO16) | status display |
 | **RL1–RL5** | Relay | SPDT signal relay ×5 | RF antenna switching |
 | **D1** | Diode | flyback (1N4148 / 1N400x-class) | across RL1 coil |
 | **D2** | Diode | flyback | across RL2 coil |

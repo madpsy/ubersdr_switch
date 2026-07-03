@@ -18,6 +18,9 @@ The pinout documentation has been reorganised into the [`docs/`](docs/) director
 | GPIO1  | DOWN button |
 | GPIO2  | ERASE button (hold) |
 | GPIO3  | UP button |
-| GPIO4 / GPIO5 | I2C OLED (SDA / SCL) |
+| GPIO4 / GPIO5 | I2C OLED SDA / SCL (0.91" 128×32 SSD1306) |
+| GPIO16 | OLED RESET (Heltec WiFi Kit 8) |
+
+Board: **Heltec WiFi Kit 8 (HTIT-W8266)** with an on-board 0.91" 128×32 SSD1306 OLED.
 
 Antenna index (0 = GROUND, 1–5 = ANT1–5) is written as binary across A2/A1/A0.

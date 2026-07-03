@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UberSDR Antenna Switch</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg:      #0b0f14;
+    --bg2:     #141b24;
+    --card:    #1a232e;
+    --card2:   #223041;
+    --line:    #2c3a4b;
+    --txt:     #e6edf3;
+    --muted:   #8695a6;
+    --accent:  #38bdf8;
+    --accent2: #0ea5e9;
+    --ok:      #22c55e;
+    --warn:    #f59e0b;
+    --err:     #ef4444;
+    --radius:  16px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 600px at 50% -10%, #16202c 0%, var(--bg) 55%);
+    color: var(--txt);
+    min-height: 100vh;
+    padding: env(safe-area-inset-top) 16px 48px;
+  }
+  .wrap { max-width: 620px; margin: 0 auto; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 22px 4px 14px;
+  }
+  .brand { display: flex; align-items: baseline; gap: 8px; }
+  .brand h1 { font-size: 22px; font-weight: 800; letter-spacing: .4px; margin: 0; }
+  .brand .sdr { color: var(--accent); }
+  .brand .sub { color: var(--muted); font-size: 12px; }
+  .iconbtn {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1px solid var(--line); background: var(--card);
+    color: var(--txt); font-size: 18px; font-weight: 700; cursor: pointer;
+    display: grid; place-items: center; transition: .15s;
+  }
+  .iconbtn:hover { background: var(--card2); border-color: var(--accent); }
+  .iconbtn.danger { font-size: 20px; }
+  .iconbtn.danger:hover { border-color: var(--err); color: var(--err); }
+
+  .card {
+    background: linear-gradient(180deg, var(--card) 0%, var(--bg2) 100%);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+
+  /* Current status */
+  .status { text-align: center; }
+  .status .now { font-size: 13px; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); }
+  .status .label {
+    font-size: 46px; font-weight: 800; margin: 6px 0 2px;
+    background: linear-gradient(90deg, var(--accent), #a5f3fc);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .status .meta { color: var(--muted); font-size: 13px; }
+  .status .meta a { color: var(--accent); text-decoration: none; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--muted); margin-right:6px; }
+  .dot.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+
+  h2.section { font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin: 4px 4px 12px; }
+
+  /* Antenna grid */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .ant {
+    position: relative;
+    border: 1px solid var(--line); background: var(--card2);
+    border-radius: 14px; padding: 20px 10px; text-align: center;
+    font-size: 17px; font-weight: 700; color: var(--txt);
+    cursor: pointer; transition: .12s; user-select: none;
+    min-height: 68px;                       /* comfortable touch target */
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    overflow: hidden;
+  }
+  .ant .nm {
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    line-height: 1.15;
+  }
+  .ant small { display:block; font-size: 11px; font-weight:600; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .ant:active { transform: scale(.97); }
+  @media (hover: hover) { .ant:hover { border-color: var(--accent); transform: translateY(-1px); } }
+  .ant.active {
+    border-color: var(--accent);
+    background: linear-gradient(180deg, var(--accent2), #0369a1);
+    color: #fff; box-shadow: 0 0 0 2px rgba(56,189,248,.35), 0 8px 20px rgba(2,132,199,.4);
+  }
+  .ant.ground { grid-column: 1 / -1; }
+  /* Edit affordance: small glyph, but a large invisible tap zone for fingers. */
+  .ant .edit {
+    position: absolute; top: 0; right: 0; width: 44px; height: 44px;
+    display: grid; place-items: center; font-size: 15px; font-weight: 400;
+    color: var(--muted); opacity: .6; transition: .12s; line-height: 1;
+  }
+  @media (hover: hover) { .ant .edit:hover { opacity: 1; color: var(--accent); } }
+  .ant.active .edit { color: rgba(255,255,255,.85); }
+
+  /* Step / controls */
+  .row { display: flex; gap: 12px; }
+  .btn {
+    flex: 1; border: 1px solid var(--line); background: var(--card2);
+    color: var(--txt); border-radius: 12px; padding: 14px;
+    font-size: 16px; font-weight: 700; cursor: pointer; transition: .12s;
+  }
+  .btn:hover { border-color: var(--accent); background: #26374a; }
+  .btn:active { transform: scale(.98); }
+  .btn.accent { background: linear-gradient(180deg, var(--accent2), #0369a1); border-color: var(--accent2); color:#fff; }
+  .btn.danger-btn { background: linear-gradient(180deg, #dc2626, #991b1b); border-color: #dc2626; color:#fff; }
+
+  .maxrow { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .maxrow .val { font-size: 28px; font-weight: 800; min-width: 48px; text-align:center; }
+  .stepper { display:flex; gap:8px; }
+  .stepper .btn { padding: 10px 16px; flex: none; }
+
+  footer { text-align:center; color: var(--muted); font-size: 12px; margin-top: 20px; }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  /* Toast */
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(80px);
+    background: var(--card2); color: var(--txt); border: 1px solid var(--line);
+    padding: 12px 18px; border-radius: 12px; font-size: 14px; opacity: 0;
+    transition: .25s; pointer-events: none; box-shadow: 0 10px 30px rgba(0,0,0,.5); z-index: 60;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #toast.err { border-color: var(--err); }
+  #toast.ok  { border-color: var(--ok); }
+
+  /* Modal */
+  .modal {
+    position: fixed; inset: 0; background: rgba(2,6,12,.72); backdrop-filter: blur(4px);
+    display: none; align-items: flex-start; justify-content: center; z-index: 80; padding: 24px 12px;
+    overflow-y: auto;
+  }
+  .modal.open { display: flex; }
+  .sheet {
+    background: var(--bg2); border: 1px solid var(--line); border-radius: var(--radius);
+    max-width: 560px; width: 100%; padding: 22px; box-shadow: 0 20px 60px rgba(0,0,0,.6);
+  }
+  .sheet h3 { margin: 0 0 4px; font-size: 20px; }
+  .sheet p.lead { color: var(--muted); margin: 0 0 16px; font-size: 13px; }
+  .sheet h4 { margin: 18px 0 6px; font-size: 13px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
+  pre {
+    background: #0a0e13; border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; overflow-x: auto; font-size: 12.5px; line-height: 1.55;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #cbd5e1; margin: 0;
+  }
+  pre .c { color: var(--ok); }         /* command */
+  pre .m { color: var(--muted); }      /* comment */
+  .sheet .close { float: right; }
+  table.ep { width:100%; border-collapse: collapse; font-size: 12.5px; margin-top: 6px; }
+  table.ep th, table.ep td { text-align:left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.ep th { color: var(--muted); font-weight: 600; }
+  table.ep code { color: var(--accent); }
+  .sheet input[type=text] {
+    width: 100%; box-sizing: border-box; margin-top: 4px;
+    background: #0a0e13; border: 1px solid var(--line); border-radius: 10px;
+    color: var(--txt); font-size: 17px; padding: 14px 14px; outline: none;
+    -webkit-appearance: none;
+  }
+  .sheet input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(56,189,248,.25); }
+  .sheet input[type=number] {
+    width: 100%; box-sizing: border-box; margin-top: 4px;
+    background: #0a0e13; border: 1px solid var(--line); border-radius: 10px;
+    color: var(--txt); font-size: 17px; padding: 14px 14px; outline: none;
+    -webkit-appearance: none;
+  }
+  .sheet input[type=number]:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(56,189,248,.25); }
+  .sheet label { display:block; font-size:13px; color:var(--muted); margin-top:14px; margin-bottom:2px; }
+  .sheet label:first-of-type { margin-top:0; }
+  .toggle-row { display:flex; align-items:center; justify-content:space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .toggle-row:last-child { border-bottom: none; }
+  .toggle-row span { font-size:14px; }
+  .toggle-row small { display:block; font-size:11px; color:var(--muted); margin-top:2px; }
+  /* iOS-style toggle */
+  .tog { position:relative; width:44px; height:26px; flex-shrink:0; }
+  .tog input { opacity:0; width:0; height:0; }
+  .tog .slider {
+    position:absolute; inset:0; border-radius:13px;
+    background:var(--line); transition:.2s; cursor:pointer;
+  }
+  .tog .slider:before {
+    content:""; position:absolute; width:20px; height:20px; border-radius:50%;
+    left:3px; top:3px; background:#fff; transition:.2s;
+  }
+  .tog input:checked + .slider { background: var(--accent2); }
+  .tog input:checked + .slider:before { transform: translateX(18px); }
+  .mqtt-status { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); margin-bottom:14px; }
+  .mqtt-status .dot { margin:0; }
+
+  /* Reboot overlay */
+  #reboot {
+    position: fixed; inset: 0; z-index: 200; display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(4,8,13,.94); backdrop-filter: blur(6px); text-align: center;
+    padding: 24px;
+  }
+  #reboot.show { display: flex; }
+  #reboot .spinner {
+    width: 56px; height: 56px; border-radius: 50%;
+    border: 4px solid var(--line); border-top-color: var(--accent);
+    animation: spin 0.9s linear infinite; margin-bottom: 22px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #reboot .rebootmsg { font-size: 22px; font-weight: 800; letter-spacing: .3px; }
+  #reboot .rebootcount {
+    font-size: 52px; font-weight: 800; margin: 6px 0 2px;
+    background: linear-gradient(90deg, var(--accent), #a5f3fc);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  #reboot .rebootsub { color: var(--muted); font-size: 13px; }
+
+  /* --- Mobile / small screens --- */
+  @media (max-width: 480px) {
+    body { padding-left: 12px; padding-right: 12px; }
+    .brand h1 { font-size: 20px; }
+    .status .label { font-size: 38px; }
+    .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .card { padding: 16px; }
+    .sheet { padding: 18px; }
+    pre { font-size: 11.5px; }
+    table.ep { font-size: 11.5px; }
+  }
+  /* very narrow: single column so names never truncate awkwardly */
+  @media (max-width: 340px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  /* larger phones / small tablets get a little more room */
+  @media (min-width: 560px) {
+    .grid { grid-template-columns: repeat(4, 1fr); }
+    .ant.ground { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <h1 id="brandName">Uber<span class="sdr">SDR</span></h1>
+      <span class="sub">antenna switch</span>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button class="iconbtn" id="infoBtn" title="Device info">i</button>
+      <button class="iconbtn" id="evtBtn" title="Event log">&#9776;</button>
+      <button class="iconbtn" id="helpBtn" title="API reference">?</button>
+      <button class="iconbtn" id="cfgBtn" title="Settings">&#9881;</button>
+      <button class="iconbtn danger" id="restartBtn" title="Restart device">&#8635;</button>
+    </div>
+  </header>
+
+  <!-- Current status -->
+  <div class="card status">
+    <div class="now"><span class="dot" id="liveDot"></span>Current antenna</div>
+    <div class="label" id="curLabel">—</div>
+    <div class="meta">
+      max <b id="curMax">–</b> &nbsp;•&nbsp;
+      <a id="curUrl" href="#">—</a> &nbsp;•&nbsp;
+      <span id="curHost">—</span>
+      <span id="mqttBadge" style="display:none"> &nbsp;•&nbsp;
+        <span id="mqttDot" class="dot"></span><span id="mqttLabel" style="font-size:12px">MQTT</span>
+      </span>
+    </div>
+    <div id="clockRow" style="display:none;font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:0.04em">
+      <span id="clockUtc"></span> UTC
+    </div>
+  </div>
+
+  <!-- Antenna selection -->
+  <div class="card">
+    <h2 class="section">Select antenna</h2>
+    <div class="grid" id="antGrid"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn" id="downBtn">▼ Down</button>
+      <button class="btn" id="upBtn">▲ Up</button>
+    </div>
+  </div>
+
+  <!-- Max control -->
+  <div class="card">
+    <h2 class="section">Max antennas</h2>
+    <div class="maxrow">
+      <span class="muted" style="color:var(--muted);font-size:13px">Highest selectable port (0–7)</span>
+      <div class="stepper">
+        <button class="btn" id="maxDown">−</button>
+        <span class="val" id="maxVal">–</span>
+        <button class="btn" id="maxUp">+</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/old">classic UI</a> · <a href="#" id="infoLink">device info</a> · <a href="#" id="helpLink">API reference</a>
+  </footer>
+</div>
+
+<div id="toast"></div>
+
+<!-- Full-screen reboot overlay with countdown -->
+<div id="reboot">
+  <div class="spinner"></div>
+  <div class="rebootmsg">Restarting…</div>
+  <div class="rebootcount"><span id="rebootSecs">20</span>s</div>
+  <div class="rebootsub">Reconnecting when the device is back online</div>
+</div>
+
+<!-- API reference modal -->
+<div class="modal" id="modal">
+  <div class="sheet">
+    <button class="iconbtn close" id="closeBtn">✕</button>
+    <h3>REST API reference</h3>
+    <p class="lead">All endpoints return JSON. Mutating calls accept any method (canonical: POST).
+    <code>$H</code> = this device (e.g. its IP or <code>ESP-XXXXXX.local</code>).</p>
+
+    <h4>Endpoints</h4>
+    <table class="ep">
+      <tr><th>Method</th><th>Path</th><th>Purpose</th></tr>
+      <tr><td>GET</td><td><code>/api/status</code></td><td>current state</td></tr>
+      <tr><td>POST</td><td><code>/api/antenna?position=N</code></td><td>select port N (0=GROUND)</td></tr>
+      <tr><td>POST</td><td><code>/api/antenna/up</code></td><td>step +1</td></tr>
+      <tr><td>POST</td><td><code>/api/antenna/down</code></td><td>step −1</td></tr>
+      <tr><td>POST</td><td><code>/api/antenna/ground</code></td><td>select GROUND</td></tr>
+      <tr><td>GET/POST</td><td><code>/api/max?value=N</code></td><td>get / set max (0–7)</td></tr>
+      <tr><td>POST</td><td><code>/api/max/bump</code></td><td>bump max (wraps)</td></tr>
+      <tr><td>GET</td><td><code>/api/names</code></td><td>all custom names</td></tr>
+      <tr><td>POST</td><td><code>/api/name?position=N&amp;name=…</code></td><td>name ANT N (blank clears)</td></tr>
+      <tr><td>DELETE</td><td><code>/api/name?position=N</code></td><td>clear ANT N name</td></tr>
+      <tr><td>GET</td><td><code>/api/info</code></td><td>device / network / firmware info</td></tr>
+      <tr><td>GET</td><td><code>/api/mqtt</code></td><td>read MQTT config + connection status</td></tr>
+      <tr><td>POST</td><td><code>/api/mqtt</code></td><td>update MQTT config (partial JSON OK)</td></tr>
+      <tr><td>GET</td><td><code>/api/ntp</code></td><td>read NTP config + sync status</td></tr>
+      <tr><td>POST</td><td><code>/api/ntp</code></td><td>update NTP config (host, port)</td></tr>
+      <tr><td>GET</td><td><code>/api/events</code></td><td>last 25 antenna-change events (JSON array)</td></tr>
+      <tr><td>POST</td><td><code>/api/restart</code></td><td>reboot the device</td></tr>
+    </table>
+
+    <h4>curl examples</h4>
+    <pre><span class="m"># read status</span>
+<span class="c">curl "http://<span class="curlH">this-device</span>/api/status"</span>
+
+<span class="m"># go straight to ANT3</span>
+<span class="c">curl -X POST "http://<span class="curlH">this-device</span>/api/antenna?position=3"</span>
+
+<span class="m"># go to GROUND</span>
+<span class="c">curl -X POST "http://<span class="curlH">this-device</span>/api/antenna/ground"</span>
+
+<span class="m"># step up / down</span>
+<span class="c">curl -X POST "http://<span class="curlH">this-device</span>/api/antenna/up"</span>
+<span class="c">curl -X POST "http://<span class="curlH">this-device</span>/api/antenna/down"</span>
+
+<span class="m"># set max selectable to 5</span>
+<span class="c">curl -X POST "http://<span class="curlH">this-device</span>/api/max?value=5"</span>
+
+<span class="m"># name ANT3 (blank name clears it)</span>
+<span class="c">curl -X POST "http://<span class="curlH">this-device</span>/api/name?position=3&amp;name=80m%20Vertical"</span>
+<span class="c">curl -X DELETE "http://<span class="curlH">this-device</span>/api/name?position=3"</span>
+
+<span class="m"># device info + reboot</span>
+<span class="c">curl "http://<span class="curlH">this-device</span>/api/info"</span>
+<span class="c">curl -X POST "http://<span class="curlH">this-device</span>/api/restart"</span>
+
+<span class="m"># MQTT config</span>
+<span class="c">curl "http://<span class="curlH">this-device</span>/api/mqtt"</span>
+<span class="c">curl -X POST -H "Content-Type: application/json" \
+     -d '{"enabled":true,"host":"192.168.1.10","retain":true}' \
+     "http://<span class="curlH">this-device</span>/api/mqtt"</span>
+
+<span class="m"># rename the switch (OLED splash + web UI header)</span>
+<span class="c">curl -X POST -H "Content-Type: application/json" \
+     -d '{"device_name":"ShackSDR"}' "http://<span class="curlH">this-device</span>/api/mqtt"</span>
+
+<span class="m"># NTP: check sync status / set server</span>
+<span class="c">curl "http://<span class="curlH">this-device</span>/api/ntp"</span>
+<span class="c">curl -X POST -H "Content-Type: application/json" \
+     -d '{"host":"pool.ntp.org","port":123}' "http://<span class="curlH">this-device</span>/api/ntp"</span>
+
+<span class="m"># event log (last 25 changes, newest first)</span>
+<span class="c">curl "http://<span class="curlH">this-device</span>/api/events"</span>
+
+<span class="m"># JSON body form</span>
+<span class="c">curl -X POST -H "Content-Type: application/json" \
+     -d '{"position":2}' "http://<span class="curlH">this-device</span>/api/antenna"</span></pre>
+
+    <h4>MQTT commands <small style="font-weight:normal;color:var(--muted)">(requires <code>commands: true</code> in Settings → MQTT)</small></h4>
+    <p class="lead">Default prefix: <code>ubersdr/&lt;hostname&gt;</code>. Override in Settings.</p>
+    <table class="ep">
+      <tr><th>Topic</th><th>Payload</th><th>Effect</th></tr>
+      <tr><td><code>&lt;prefix&gt;/set</code></td><td><code>0</code>–<code>7</code> | <code>up</code> | <code>down</code> | <code>ground</code></td><td>Select antenna / step</td></tr>
+      <tr><td><code>&lt;prefix&gt;/max/set</code></td><td><code>0</code>–<code>7</code></td><td>Set max antennas</td></tr>
+      <tr><td><code>&lt;prefix&gt;/name/set</code></td><td><code>{"position":N,"name":"…"}</code></td><td>Set/clear a port name</td></tr>
+      <tr><td><code>&lt;prefix&gt;/restart</code></td><td>any</td><td>Reboot the device</td></tr>
+    </table>
+    <pre id="mqttCmdPre"><span class="m"># mosquitto_pub examples</span>
+<span class="c">mosquitto_pub -h <span id="mqttCmdHost">…</span> -t "<span id="mqttCmdPfx">ubersdr/ESP-XXXXXX</span>/set" -m "3"</span>
+<span class="c">mosquitto_pub -h <span id="mqttCmdHost2">…</span> -t "<span id="mqttCmdPfx2">ubersdr/ESP-XXXXXX</span>/set" -m "up"</span>
+<span class="c">mosquitto_pub -h <span id="mqttCmdHost3">…</span> -t "<span id="mqttCmdPfx3">ubersdr/ESP-XXXXXX</span>/set" -m "ground"</span>
+<span class="c">mosquitto_pub -h <span id="mqttCmdHost4">…</span> -t "<span id="mqttCmdPfx4">ubersdr/ESP-XXXXXX</span>/max/set" -m "5"</span>
+<span class="c">mosquitto_pub -h <span id="mqttCmdHost5">…</span> -t "<span id="mqttCmdPfx5">ubersdr/ESP-XXXXXX</span>/name/set" \
+  -m '{"position":3,"name":"80m Vertical"}'</span></pre>
+
+    <h4>JavaScript</h4>
+    <pre><span class="c">await fetch("/api/antenna?position=2", {method:"POST"})
+  .then(r =&gt; r.json());</span></pre>
+
+    <p class="lead" style="margin-top:16px">Full reference: <a href="https://github.com/" style="color:var(--accent)">docs/rest-api.md</a></p>
+  </div>
+</div>
+
+<!-- Device info modal -->
+<div class="modal" id="infoModal">
+  <div class="sheet">
+    <button class="iconbtn close" id="infoClose">✕</button>
+    <h3>Device info</h3>
+    <p class="lead">Live device, network and firmware details (from <code>GET /api/info</code>).</p>
+    <div id="infoBody">
+      <table class="ep" id="infoTable"><tbody></tbody></table>
+    </div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn" id="infoRefresh">Refresh</button>
+      <a class="btn" href="/update" style="text-align:center; text-decoration:none; line-height:1.4">OTA update</a>
+    </div>
+  </div>
+</div>
+
+<!-- Rename modal -->
+<div class="modal" id="renameModal">
+  <div class="sheet" style="max-width:400px">
+    <button class="iconbtn close" id="renameClose">✕</button>
+    <h3 id="renameTitle">Rename antenna</h3>
+    <p class="lead">Up to 16 characters. Leave blank to clear the name.</p>
+    <input id="renameInput" type="text" maxlength="16" autocomplete="off"
+           placeholder="e.g. 80m Vertical" />
+    <div class="row" style="margin-top:16px">
+      <button class="btn" id="renameCancel">Cancel</button>
+      <button class="btn accent" id="renameSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal" id="cfgModal">
+  <div class="sheet" style="max-width:480px">
+    <button class="iconbtn close" id="cfgClose">✕</button>
+    <h3>Settings</h3>
+
+    <h4>MQTT</h4>
+    <div class="mqtt-status">
+      <span class="dot" id="cfgMqttDot"></span>
+      <span id="cfgMqttStatus">loading…</span>
+    </div>
+
+    <div class="toggle-row">
+      <div><span>Enable MQTT</span><small>Connect to a broker and publish state</small></div>
+      <label class="tog"><input type="checkbox" id="mqttEnabled"><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <div><span>Retain messages</span><small>Broker stores last state for new subscribers</small></div>
+      <label class="tog"><input type="checkbox" id="mqttRetain"><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <div><span>Accept commands</span><small>Subscribe to set/max/name/restart topics</small></div>
+      <label class="tog"><input type="checkbox" id="mqttCommands"><span class="slider"></span></label>
+    </div>
+
+    <label>Broker host</label>
+    <input type="text" id="mqttHost" maxlength="48" placeholder="e.g. 192.168.1.10 or mqtt.local" autocomplete="off">
+
+    <label>Port</label>
+    <input type="number" id="mqttPort" min="1" max="65535" placeholder="1883">
+
+    <label>Username <small style="display:inline;color:var(--muted)">(optional)</small></label>
+    <input type="text" id="mqttUser" maxlength="32" placeholder="leave blank if not required" autocomplete="off">
+
+    <label>Password <small style="display:inline;color:var(--muted)">(optional)</small></label>
+    <input type="text" id="mqttPass" maxlength="32" placeholder="leave blank if not required" autocomplete="off">
+
+    <label>Topic prefix <small style="display:inline;color:var(--muted)">(blank = ubersdr/&lt;hostname&gt;)</small></label>
+    <input type="text" id="mqttPrefix" maxlength="40" placeholder="e.g. home/shack/antenna" autocomplete="off">
+
+    <h4 style="margin-top:22px">Device</h4>
+    <label>Switch name <small style="display:inline;color:var(--muted)">(shown on OLED splash &amp; web header)</small></label>
+    <input type="text" id="deviceName" maxlength="24" placeholder="UberSDR" autocomplete="off">
+
+    <h4 style="margin-top:22px">NTP (time sync)</h4>
+    <div id="ntpStatus" style="font-size:12px;color:var(--muted);margin-bottom:8px">loading…</div>
+    <label>NTP server</label>
+    <input type="text" id="ntpHost" maxlength="48" placeholder="pool.ntp.org" autocomplete="off">
+    <label>Port <small style="display:inline;color:var(--muted)">(default 123)</small></label>
+    <input type="number" id="ntpPort" min="1" max="65535" placeholder="123">
+
+    <div class="row" style="margin-top:18px">
+      <button class="btn" id="cfgCancel">Cancel</button>
+      <button class="btn accent" id="cfgSave">Save &amp; apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- Event log modal -->
+<div class="modal" id="evtModal">
+  <div class="sheet" style="max-width:560px">
+    <button class="iconbtn close" id="evtClose">✕</button>
+    <h3>Event log <small id="evtCount" style="font-size:13px;color:var(--muted)"></small></h3>
+    <p class="lead">Last 25 antenna-change events, newest first.</p>
+    <table class="ep" id="evtTable">
+      <thead><tr><th>Time</th><th>Source</th><th>Position</th><th>Label</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="row" style="margin-top:14px">
+      <button class="btn" id="evtRefresh">Refresh</button>
+      <button class="btn" id="evtClose2">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Restart confirm modal -->
+<div class="modal" id="restartModal">
+  <div class="sheet" style="max-width:400px">
+    <button class="iconbtn close" id="restartClose">✕</button>
+    <h3>Restart device?</h3>
+    <p class="lead">The switch will reboot and briefly go offline. The current antenna
+    resets to GROUND on boot; saved names and max value are kept.</p>
+    <div class="row" style="margin-top:16px">
+      <button class="btn" id="restartCancel">Cancel</button>
+      <button class="btn danger-btn" id="restartConfirm">Restart</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var maxAnt = 5, curPos = 0, names = {};
+  var grid = document.getElementById("antGrid");
+
+  function toast(msg, kind){
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.className = "show" + (kind ? " " + kind : "");
+    clearTimeout(t._h);
+    t._h = setTimeout(function(){ t.className = t.className.replace("show","").trim(); }, 2200);
+  }
+
+  function api(path, method){
+    return fetch(path, { method: method || "GET" }).then(function(r){
+      return r.json().then(function(j){
+        if(!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+        return j;
+      });
+    });
+  }
+
+  // Clock: synced from s.time (ISO8601 UTC), ticks locally every second.
+  var _clockBase = 0;   // Unix ms at last sync
+  var _clockSyncAt = 0; // performance.now() ms at last sync
+  function clockSync(isoStr){
+    if(!isoStr) return;
+    var d = new Date(isoStr);
+    if(isNaN(d)) return;
+    _clockBase  = d.getTime();
+    _clockSyncAt = Date.now();
+    document.getElementById("clockRow").style.display = "";
+  }
+  function clockTick(){
+    if(!_clockBase) return;
+    var now = new Date(_clockBase + (Date.now() - _clockSyncAt));
+    var hh = String(now.getUTCHours()).padStart(2,"0");
+    var mm = String(now.getUTCMinutes()).padStart(2,"0");
+    var ss = String(now.getUTCSeconds()).padStart(2,"0");
+    var dd = now.getUTCFullYear() + "-" +
+             String(now.getUTCMonth()+1).padStart(2,"0") + "-" +
+             String(now.getUTCDate()).padStart(2,"0");
+    document.getElementById("clockUtc").textContent = dd + " " + hh + ":" + mm + ":" + ss;
+  }
+
+  function render(s){
+    if(typeof s.position === "number") curPos = s.position;
+    if(typeof s.max === "number") maxAnt = s.max;
+    if(s.names && typeof s.names === "object") names = s.names;
+    if(s.time) clockSync(s.time);
+
+    document.getElementById("curLabel").textContent = s.label || (s.ground ? "GROUND" : "ANT: " + s.position);
+    document.getElementById("curMax").textContent = maxAnt;
+    document.getElementById("maxVal").textContent = maxAnt;
+    document.getElementById("curHost").textContent = s.hostname || "";
+    var url = s.url || "";
+    var a = document.getElementById("curUrl");
+    a.textContent = url || "(IP unset)";
+    a.href = url || "#";
+    document.getElementById("liveDot").classList.add("live");
+
+    // Update header brand with device name
+    if(s.device_name){
+      var bn = document.getElementById("brandName");
+      // Split on last word to apply accent colour to it (e.g. "Uber" + "SDR")
+      var nm = s.device_name;
+      var sp = nm.lastIndexOf(" ");
+      if(sp > 0){
+        bn.innerHTML = esc(nm.slice(0, sp+1)) + "<span class='sdr'>" + esc(nm.slice(sp+1)) + "</span>";
+      } else {
+        // Single word: accent the last 3 chars if long enough, else whole word
+        var cut = nm.length > 4 ? nm.length - 3 : 0;
+        bn.innerHTML = esc(nm.slice(0, cut)) + "<span class='sdr'>" + esc(nm.slice(cut)) + "</span>";
+      }
+    }
+
+    // MQTT status badge in the status card
+    var badge = document.getElementById("mqttBadge");
+    var dot   = document.getElementById("mqttDot");
+    var lbl   = document.getElementById("mqttLabel");
+    if(s.mqtt_enabled){
+      badge.style.display = "";
+      if(s.mqtt_connected){
+        dot.className = "dot live"; dot.style.background = "";
+        lbl.textContent = "MQTT"; lbl.style.color = "";
+      } else {
+        dot.className = "dot"; dot.style.background = "var(--warn)";
+        lbl.textContent = "MQTT offline"; lbl.style.color = "var(--warn)";
+      }
+    } else {
+      badge.style.display = "none";
+    }
+
+    buildGrid();
+    highlight();
+  }
+
+  function buildGrid(){
+    grid.innerHTML = "";
+    // GROUND spans full width
+    var g = document.createElement("div");
+    g.className = "ant ground";
+    g.dataset.pos = "0";
+    g.innerHTML = "<span class='nm'>GROUND</span><small>position 0</small>";
+    grid.appendChild(g);
+    for(var i = 1; i <= maxAnt; i++){
+      var d = document.createElement("div");
+      d.className = "ant";
+      d.dataset.pos = String(i);
+      var nm = names[String(i)];
+      var title = nm ? esc(nm) : ("ANT " + i);
+      d.innerHTML = "<span class='edit' data-edit='" + i + "' title='Rename'>&#9998;</span>" +
+                    "<span class='nm'>" + title + "</span><small>port " + i + "</small>";
+      grid.appendChild(d);
+    }
+  }
+
+  function esc(s){
+    return String(s).replace(/[&<>]/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];
+    });
+  }
+
+  var renamePos = 0;
+  function rename(pos){
+    renamePos = pos;
+    document.getElementById("renameTitle").textContent = "Rename ANT " + pos;
+    var inp = document.getElementById("renameInput");
+    inp.value = names[String(pos)] || "";
+    document.getElementById("renameModal").classList.add("open");
+    setTimeout(function(){ inp.focus(); inp.select(); }, 50);
+  }
+  function renameCommit(){
+    var v = document.getElementById("renameInput").value.slice(0, 16);
+    var q = "/api/name?position=" + renamePos + "&name=" + encodeURIComponent(v);
+    api(q, "POST")
+      .then(function(){ return refresh(); })
+      .then(function(){
+        closeRename();
+        toast(v ? ("Renamed ANT " + renamePos) : ("Cleared ANT " + renamePos + " name"), "ok");
+      })
+      .catch(function(e){ toast(e.message, "err"); });
+  }
+  function closeRename(){ document.getElementById("renameModal").classList.remove("open"); }
+
+  function highlight(){
+    var items = grid.querySelectorAll(".ant");
+    items.forEach(function(el){
+      el.classList.toggle("active", Number(el.dataset.pos) === curPos);
+    });
+  }
+
+  function select(pos){
+    api("/api/antenna?position=" + pos, "POST")
+      .then(render)
+      .then(function(){ toast("Selected " + (pos===0?"GROUND":"ANT "+pos), "ok"); })
+      .catch(function(e){ toast(e.message, "err"); });
+  }
+
+  function refresh(){ api("/api/status").then(render).catch(function(){}); }
+
+  // Events
+  grid.addEventListener("click", function(e){
+    var editEl = e.target.closest("[data-edit]");
+    if(editEl){ e.stopPropagation(); rename(Number(editEl.dataset.edit)); return; }
+    var el = e.target.closest(".ant");
+    if(el) select(Number(el.dataset.pos));
+  });
+  document.getElementById("upBtn").onclick = function(){
+    api("/api/antenna/up","POST").then(render).catch(function(e){toast(e.message,"err");});
+  };
+  document.getElementById("downBtn").onclick = function(){
+    api("/api/antenna/down","POST").then(render).catch(function(e){toast(e.message,"err");});
+  };
+  document.getElementById("maxUp").onclick = function(){
+    if(maxAnt >= 7){ toast("max is 7","err"); return; }
+    api("/api/max?value=" + (maxAnt+1),"POST").then(refresh).catch(function(e){toast(e.message,"err");});
+  };
+  document.getElementById("maxDown").onclick = function(){
+    if(maxAnt <= 0){ toast("max is 0","err"); return; }
+    api("/api/max?value=" + (maxAnt-1),"POST").then(refresh).catch(function(e){toast(e.message,"err");});
+  };
+
+  // Help modal
+  var modal = document.getElementById("modal");
+  function openModal(){
+    // Fill all .curlH spans with the live device host.
+    var host = location.host || "this-device";
+    document.querySelectorAll(".curlH").forEach(function(el){ el.textContent = host; });
+    modal.classList.add("open");
+    // Populate MQTT command examples with live broker config.
+    api("/api/mqtt").then(function(c){
+      var broker = c.host || "…";
+      var hostname = document.getElementById("curHost").textContent || "ESP-XXXXXX";
+      var prefix = (c.prefix && c.prefix.length) ? c.prefix : ("ubersdr/" + hostname);
+      [1,2,3,4,5].forEach(function(i){
+        var hEl = document.getElementById("mqttCmdHost" + (i===1?"":i));
+        var pEl = document.getElementById("mqttCmdPfx"  + (i===1?"":i));
+        if(hEl) hEl.textContent = broker;
+        if(pEl) pEl.textContent = prefix;
+      });
+    }).catch(function(){});
+  }
+  function closeModal(){ modal.classList.remove("open"); }
+  document.getElementById("helpBtn").onclick = openModal;
+  document.getElementById("helpLink").onclick = function(e){ e.preventDefault(); openModal(); };
+  document.getElementById("closeBtn").onclick = closeModal;
+  modal.addEventListener("click", function(e){ if(e.target === modal) closeModal(); });
+
+  // Device info modal
+  var infoModal = document.getElementById("infoModal");
+  var INFO_ROWS = [
+    ["Switch name","device_name"],
+    ["Hostname","hostname"], ["WiFi SSID","ssid"], ["Signal (RSSI)","rssi","dBm"],
+    ["IP address","sta_ip"], ["Gateway","gateway"], ["Netmask","netmask"],
+    ["DNS","dns"], ["STA MAC","sta_mac"], ["AP MAC","ap_mac"], ["BSSID","bssid"],
+    ["AP mode","ap_mode"],
+    ["Chip ID","chip_id"], ["Flash ID","flash_id"], ["Flash size","flash_size","bytes"],
+    ["SDK","sdk"], ["Core","core"], ["Boot ver","boot"], ["Reset reason","reset"],
+    ["Free heap","heap","bytes"], ["Sketch size","sketch","bytes"],
+    ["Free sketch","free_sketch","bytes"], ["Uptime","uptime","s"],
+    ["UTC time","time"]
+  ];
+  function fmt(v, unit){
+    if(unit === "bytes" && typeof v === "number"){
+      if(v >= 1024*1024) return (v/1048576).toFixed(2) + " MB";
+      if(v >= 1024) return (v/1024).toFixed(1) + " KB";
+      return v + " B";
+    }
+    if(unit === "s" && typeof v === "number"){
+      var h = Math.floor(v/3600), m = Math.floor((v%3600)/60), s = v%60;
+      return (h?h+"h ":"") + (m?m+"m ":"") + s + "s";
+    }
+    if(unit) return v + " " + unit;
+    return v;
+  }
+  function loadInfo(){
+    var tb = document.querySelector("#infoTable tbody");
+    tb.innerHTML = "<tr><td colspan='2' style='color:var(--muted)'>loading…</td></tr>";
+    api("/api/info").then(function(d){
+      tb.innerHTML = "";
+      INFO_ROWS.forEach(function(r){
+        var key = r[1], val = d[key];
+        if(val === undefined || val === "" || val === "0.0.0.0") return;
+        var tr = document.createElement("tr");
+        var th = document.createElement("th"); th.textContent = r[0];
+        var td = document.createElement("td"); td.innerHTML = "<code>" + fmt(val, r[2]) + "</code>";
+        tr.appendChild(th); tr.appendChild(td); tb.appendChild(tr);
+      });
+    }).catch(function(e){
+      tb.innerHTML = "<tr><td colspan='2' style='color:var(--err)'>" + e.message + "</td></tr>";
+    });
+  }
+  function openInfo(){ infoModal.classList.add("open"); loadInfo(); }
+  function closeInfo(){ infoModal.classList.remove("open"); }
+  document.getElementById("infoBtn").onclick = openInfo;
+  document.getElementById("infoLink").onclick = function(e){ e.preventDefault(); openInfo(); };
+  document.getElementById("infoClose").onclick = closeInfo;
+  document.getElementById("infoRefresh").onclick = loadInfo;
+  infoModal.addEventListener("click", function(e){ if(e.target === infoModal) closeInfo(); });
+
+  // Rename modal
+  var renameModal = document.getElementById("renameModal");
+  document.getElementById("renameSave").onclick = renameCommit;
+  document.getElementById("renameCancel").onclick = closeRename;
+  document.getElementById("renameClose").onclick = closeRename;
+  renameModal.addEventListener("click", function(e){ if(e.target === renameModal) closeRename(); });
+  document.getElementById("renameInput").addEventListener("keydown", function(e){
+    if(e.key === "Enter"){ e.preventDefault(); renameCommit(); }
+  });
+
+  // Restart modal
+  var restartModal = document.getElementById("restartModal");
+  function openRestart(){ restartModal.classList.add("open"); }
+  function closeRestart(){ restartModal.classList.remove("open"); }
+  document.getElementById("restartBtn").onclick = openRestart;
+  document.getElementById("restartCancel").onclick = closeRestart;
+  document.getElementById("restartClose").onclick = closeRestart;
+  restartModal.addEventListener("click", function(e){ if(e.target === restartModal) closeRestart(); });
+  document.getElementById("restartConfirm").onclick = function(){
+    api("/api/restart", "POST").catch(function(){});   // device reboots; response may not arrive
+    closeRestart();
+    document.getElementById("liveDot").classList.remove("live");
+
+    // Full-screen overlay with a 20s countdown, then reload. If the device comes back
+    // sooner (poll succeeds), reload immediately.
+    var overlay = document.getElementById("reboot");
+    var secsEl  = document.getElementById("rebootSecs");
+    var remaining = 20;
+    secsEl.textContent = remaining;
+    overlay.classList.add("show");
+
+    var done = false;
+    function finish(){ if(done) return; done = true; location.reload(); }
+
+    var tick = setInterval(function(){
+      remaining--;
+      if(remaining <= 0){
+        secsEl.textContent = 0;
+        clearInterval(tick); clearInterval(poll);
+        finish();
+        return;
+      }
+      secsEl.textContent = remaining;
+    }, 1000);
+
+    // Start polling for the device after a short grace period (it needs a few seconds
+    // to drop offline and rejoin WiFi before /api/status can succeed).
+    var poll = setInterval(function(){
+      if(remaining > 17) return;   // wait ~3s before probing
+      fetch("/api/status", {cache:"no-store"}).then(function(r){
+        if(r.ok){ clearInterval(tick); clearInterval(poll); finish(); }
+      }).catch(function(){});
+    }, 1500);
+  };
+
+  // Event log modal
+  var evtModal = document.getElementById("evtModal");
+  function loadEvents(){
+    var tb = document.querySelector("#evtTable tbody");
+    tb.innerHTML = "<tr><td colspan='4' style='color:var(--muted)'>loading…</td></tr>";
+    api("/api/events").then(function(evts){
+      document.getElementById("evtCount").textContent = "(" + evts.length + ")";
+      tb.innerHTML = "";
+      if(!evts.length){
+        tb.innerHTML = "<tr><td colspan='4' style='color:var(--muted)'>No events yet</td></tr>";
+        return;
+      }
+      evts.forEach(function(e){
+        var tr = document.createElement("tr");
+        var ts = e.ts || "<span style='color:var(--muted)'>—</span>";
+        // Format ISO timestamp nicely: show time part only if today
+        if(e.ts && e.ts.length >= 19){
+          var d = new Date(e.ts);
+          if(!isNaN(d)){
+            var today = new Date();
+            if(d.toDateString() === today.toDateString()){
+              ts = d.toLocaleTimeString();
+            } else {
+              ts = d.toLocaleDateString() + " " + d.toLocaleTimeString();
+            }
+          }
+        }
+        var src = {"button":"🔘 button","api":"🌐 API","web":"🌐 web","mqtt":"📡 MQTT"}[e.source] || esc(e.source);
+        tr.innerHTML = "<td style='white-space:nowrap'>" + ts + "</td>" +
+                       "<td>" + src + "</td>" +
+                       "<td>" + e.position + "</td>" +
+                       "<td>" + esc(e.label) + "</td>";
+        tb.appendChild(tr);
+      });
+    }).catch(function(err){
+      tb.innerHTML = "<tr><td colspan='4' style='color:var(--err)'>" + esc(err.message) + "</td></tr>";
+    });
+  }
+  function openEvt(){ evtModal.classList.add("open"); loadEvents(); }
+  function closeEvt(){ evtModal.classList.remove("open"); }
+  document.getElementById("evtBtn").onclick = openEvt;
+  document.getElementById("evtClose").onclick = closeEvt;
+  document.getElementById("evtClose2").onclick = closeEvt;
+  document.getElementById("evtRefresh").onclick = loadEvents;
+  evtModal.addEventListener("click", function(e){ if(e.target === evtModal) closeEvt(); });
+
+  // Settings / MQTT modal
+  var cfgModal = document.getElementById("cfgModal");
+  function openCfg(){
+    cfgModal.classList.add("open");
+    // Load current MQTT config
+    api("/api/mqtt").then(function(c){
+      document.getElementById("mqttEnabled").checked  = !!c.enabled;
+      document.getElementById("mqttRetain").checked   = !!c.retain;
+      document.getElementById("mqttCommands").checked = !!c.commands;
+      document.getElementById("mqttHost").value   = c.host   || "";
+      document.getElementById("mqttPort").value   = c.port   || 1883;
+      document.getElementById("mqttUser").value   = c.user   || "";
+      document.getElementById("mqttPass").value   = "";   // never pre-fill password
+      document.getElementById("mqttPrefix").value = c.prefix || "";
+      document.getElementById("deviceName").value = c.device_name || "";
+      // Connection status indicator inside the modal
+      var dot = document.getElementById("cfgMqttDot");
+      var st  = document.getElementById("cfgMqttStatus");
+      if(!c.enabled){
+        dot.className = "dot"; dot.style.background = "var(--muted)";
+        st.textContent = "Disabled";
+      } else if(c.connected){
+        dot.className = "dot live"; dot.style.background = "";
+        st.textContent = "Connected";
+      } else {
+        dot.className = "dot"; dot.style.background = "var(--warn)";
+        st.textContent = "Not connected";
+      }
+    }).catch(function(){ });
+    // Load NTP config
+    api("/api/ntp").then(function(n){
+      document.getElementById("ntpHost").value = n.host || "pool.ntp.org";
+      document.getElementById("ntpPort").value = n.port || 123;
+      var st = document.getElementById("ntpStatus");
+      if(n.synced){
+        st.textContent = "✓ Synced — " + (n.time || "");
+        st.style.color = "var(--accent)";
+      } else {
+        st.textContent = "Not yet synced";
+        st.style.color = "var(--warn)";
+      }
+    }).catch(function(){ });
+  }
+  function closeCfg(){ cfgModal.classList.remove("open"); }
+  document.getElementById("cfgBtn").onclick = openCfg;
+  document.getElementById("cfgClose").onclick = closeCfg;
+  document.getElementById("cfgCancel").onclick = closeCfg;
+  cfgModal.addEventListener("click", function(e){ if(e.target === cfgModal) closeCfg(); });
+
+  document.getElementById("cfgSave").onclick = function(){
+    var pass = document.getElementById("mqttPass").value;
+    var mqttBody = {
+      enabled:     document.getElementById("mqttEnabled").checked,
+      retain:      document.getElementById("mqttRetain").checked,
+      commands:    document.getElementById("mqttCommands").checked,
+      host:        document.getElementById("mqttHost").value.trim(),
+      port:        parseInt(document.getElementById("mqttPort").value, 10) || 1883,
+      user:        document.getElementById("mqttUser").value.trim(),
+      prefix:      document.getElementById("mqttPrefix").value.trim(),
+      device_name: document.getElementById("deviceName").value.trim()
+    };
+    if(pass) mqttBody.pass = pass;
+    var ntpBody = {
+      host: document.getElementById("ntpHost").value.trim() || "pool.ntp.org",
+      port: parseInt(document.getElementById("ntpPort").value, 10) || 123
+    };
+    Promise.all([
+      fetch("/api/mqtt", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(mqttBody) }).then(function(r){ return r.json(); }),
+      fetch("/api/ntp",  { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(ntpBody)  }).then(function(r){ return r.json(); })
+    ]).then(function(){
+      closeCfg();
+      toast("Settings saved", "ok");
+      refresh();
+    }).catch(function(e){ toast(e.message, "err"); });
+  };
+
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape"){ closeModal(); closeInfo(); closeRename(); closeRestart(); closeCfg(); closeEvt(); }
+  });
+
+  // Boot + poll every 3s to reflect physical-button / OLED changes.
+  refresh();
+  setInterval(refresh, 3000);
+  // Clock ticks every second (locally, no extra requests).
+  setInterval(clockTick, 1000);
+})();
+</script>
+</body>
+</html>

@@ -1,8 +1,9 @@
 # Hardware Pinout — ANTENNA SELECTOR V2
 
-Board: ESP8266 (Wemos D1 mini class module, MAC `cc:50:e3:45:ca:21`) driving a
-**74HCT138** 3-to-8 line decoder, which in turn switches the antenna relays
-(RL1–RL5) on the "ANTENNAS webSWITCH control 1 to 5" board (ANTENI.NET Ltd.).
+Board: **Heltec WiFi Kit 8 (HTIT-W8266)** — an ESP8266 module with an on-board
+0.91" 128×32 SSD1306 OLED (MAC `cc:50:e3:45:ca:21`) — driving a **74HCT138** 3-to-8
+line decoder, which in turn switches the antenna relays (RL1–RL5) on the "ANTENNAS
+webSWITCH control 1 to 5" board (ANTENI.NET Ltd.).
 
 All assignments were recovered by disassembling the flash image and tracing calls
 to the Arduino core primitives `__digitalWrite(pin,val)` (`0x401002fc`) and
@@ -20,8 +21,9 @@ to the Arduino core primitives `__digitalWrite(pin,val)` (`0x401002fc`) and
 | GPIO1  | IN  | **DOWN** button | active-low, internal pull-up (also UART0 TX pin) |
 | GPIO2  | IN  | **ERASE** button (hold) | active-low, internal pull-up |
 | GPIO3  | IN  | **UP** button | active-low, internal pull-up (also UART0 RX pin) |
-| GPIO4  | I2C | OLED **SDA** | SSD1306/U8g2 display |
-| GPIO5  | I2C | OLED **SCL** | SSD1306/U8g2 display |
+| GPIO4  | I2C | OLED **SDA** | 0.91" 128×32 SSD1306 (I²C addr `0x3C`) |
+| GPIO5  | I2C | OLED **SCL** | 0.91" 128×32 SSD1306 (I²C addr `0x3C`) |
+| GPIO16 | OUT | OLED **RESET** | Heltec WiFi Kit 8 wires the SSD1306 RES to GPIO16; must be pulsed LOW→HIGH before init or the panel stays blank |
 
 > GPIO1/GPIO3 double as the UART0 TX/RX pins. The stock firmware repurposes them
 > as button inputs, which is why serial console use and the buttons can interfere.

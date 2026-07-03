@@ -51,6 +51,14 @@ After connecting, the firmware sets a hostname and advertises mDNS:
 - Reachable at **`http://ESP-45CA21.local`** (plus its DHCP IP)
 - Log: `Connected to: <SSID>`; the SSID/IP also appears on the OLED.
 
+> **Replica connection resilience:** the replica firmware does **not** drop into AP mode
+> on the first failed connect. If saved credentials exist it retries them for a bounded
+> total budget (~45 s, several ~15 s attempts) before opening the captive portal, so a
+> router that is briefly slow/unavailable at boot (e.g. after a power cut) is tolerated.
+> The OLED animates during the wait and holding **UP** still forces the portal. Tunable
+> via `WIFI_CONNECT_BUDGET_MS` / `WIFI_CONNECT_ATTEMPT_S` / `WIFI_CONNECT_RETRIES` in
+> [`../firmware/src/config.h`](../firmware/src/config.h).
+
 ## Captive-portal / config pages
 
 | Path | Method | Function |

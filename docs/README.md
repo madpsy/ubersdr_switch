@@ -13,6 +13,8 @@ Reverse-engineering documentation for the ANTENI.NET Ltd. "ANTENNAS webSWITCH co
 | [`74hct138-truth-table.md`](74hct138-truth-table.md) | Decoder select-line → antenna truth table + selection code |
 | [`buttons.md`](buttons.md) | The four buttons (UP / DOWN / SET / ERASE), pins and behaviour |
 | [`web-interface.md`](web-interface.md) | The stock HTTP server, routes, and the exact served HTML |
+| [`rest-api.md`](rest-api.md) | **JSON REST API** (`/api/*`) for scripting antenna selection |
+| [`mqtt.md`](mqtt.md) | **MQTT** — topics, payloads, commands, HA example, config API |
 | [`wifi-ap-config.md`](wifi-ap-config.md) | WiFiManager captive portal, SoftAP, mDNS, OTA, erase flow |
 | [`firmware-analysis.md`](firmware-analysis.md) | **Full end-to-end reverse-engineering walkthrough** |
 
@@ -29,7 +31,8 @@ Reverse-engineering documentation for the ANTENI.NET Ltd. "ANTENNAS webSWITCH co
 | GPIO1  | **DOWN** button |
 | GPIO2  | **ERASE** button (hold) |
 | GPIO3  | **UP** button |
-| GPIO4 / GPIO5 | I2C OLED (SDA / SCL) |
+| GPIO4 / GPIO5 | I2C OLED SDA / SCL (0.91" 128×32 SSD1306) |
+| GPIO16 | OLED RESET (Heltec WiFi Kit 8) |
 
 ### Antenna selection code
 

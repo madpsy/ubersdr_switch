@@ -11,6 +11,12 @@ extracted from the flash image. The firmware exposes **two distinct HTTP surface
 Both can be active depending on connection state. The application page is what a user
 normally interacts with once the device is on their WiFi.
 
+> **Replica note:** this section documents the *stock* firmware. In the replica
+> firmware the **default page at `/` is the modern UI** ([`../firmware/data/app.html`](../firmware/data/app.html));
+> the stock page described below is preserved at **`/old`**, and the legacy `/5/on`,
+> `/4/on` routes are unchanged. The replica also adds a JSON REST API
+> ([`rest-api.md`](rest-api.md)) with a **direct antenna-select** endpoint.
+
 ---
 
 ## 1. Application server (antenna control)
@@ -56,8 +62,39 @@ Connection: close
 
 ### 1.3 Served HTML (exact)
 
-Reconstructed in flash order. The dynamic selection label — one of
-`GROUND`, `ANT: 1` … `ANT: 7` — is emitted where `<p>GROUND</p>` appears:
+Captured verbatim from a running device (`curl http://<ip>/`). The stock page is
+**not** well-formed HTML: after `<p>ANTENNA:</p>` it re-opens `<body>`/`<h1>`, then
+emits the selection, then the Dn button and a stray `<h2>` before the footer.
+
+Crucially the **two states are formatted differently**:
+
+- **ANTn** (position 1…7): a **bare digit** with no `<p>` wrapper and no trailing
+  newline, so the Dn `<p>` follows on the same line — e.g. for ANT4:
+
+  ```html
+  ...
+  <p>ANTENNA:</p>
+  <body><h1>
+  4<p><a href="/4/on"><button class="button">Dn</button></a></p>
+  <h2>
+  <p>Anteni.net Ltd.</p>
+  </body></html>
+  ```
+
+- **GROUND** (position 0): the word `GROUND` **wrapped in `<p>…</p>`** on its own line:
+
+  ```html
+  ...
+  <p>ANTENNA:</p>
+  <body><h1>
+  <p>GROUND</p>
+  <p><a href="/4/on"><button class="button">Dn</button></a></p>
+  <h2>
+  <p>Anteni.net Ltd.</p>
+  </body></html>
+  ```
+
+Full page (GROUND state) for reference:
 
 ```html
 <!DOCTYPE html><html>
@@ -70,11 +107,19 @@ text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}
 <body><h1>Web ANTENNAS switch</h1>
 <p><a href="/5/on"><button class="button">Up</button></a></p>
 <p>ANTENNA:</p>
-<p>GROUND</p>                       <!-- dynamic: GROUND | ANT: 1 .. ANT: 7 -->
+<body><h1>
+<p>GROUND</p>
 <p><a href="/4/on"><button class="button">Dn</button></a></p>
+<h2>
 <p>Anteni.net Ltd.</p>
 </body></html>
 ```
+
+> The **web page** shows the word `GROUND` (in `<p>`) or the **bare antenna number**
+> (no `<p>`) — which differs from the OLED, which shows `GROUND` / `ANT: n`. The replica
+> reproduces both web layouts exactly via `antenna.webLabel()` (substituted for
+> `%LABEL%` in `data/index.html`), while the OLED keeps the `ANT: n` form
+> (`antenna.label()`).
 
 ### 1.4 UI details
 
@@ -84,11 +129,16 @@ text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}
   `.button` — background `#195B6A`, **yellow** text, 30 px font, 16×40 px padding.
 - **Unused CSS:** a `.button2` class (`#77878A`) is defined but never used in the
   markup (leftover from the ESP8266 WebServer example this was derived from).
-- **Selection label strings** (shared with the OLED): `ANT: 1`, `ANT: 2`, `ANT: 3`,
-  `ANT: 4`, `ANT: 5`, `ANT: 6`, `ANT: 7`, `GROUND`.
+- **Selection value:** on the **web page** it is the bare position number `1`…`7`
+  (or `GROUND` for position 0) — NOT the `ANT: n` form. The `ANT: 1`…`ANT: 7` / `GROUND`
+  strings are what the **OLED** shows.
 - Mobile-friendly `viewport` meta; `<link rel="icon" href="data:,">` suppresses the
   favicon request.
 - The page auto-reflects state but does **not** auto-refresh (no meta-refresh / JS).
+
+> **Prefer the JSON REST API for automation.** The replica firmware also exposes a
+> clean `/api/*` JSON interface (direct position select, status, max control) that is
+> far easier to script than the stock Up/Dn routes. See [`rest-api.md`](rest-api.md).
 
 ### 1.5 Driving it from a script
 
