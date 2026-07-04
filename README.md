@@ -1,4 +1,4 @@
-# UberSDR Antenna Switch
+# UberANT Antenna Switch Firmware for UberSDR
 
 WiFi-controlled antenna switch firmware for the **MS-S5 / ANTENI.NET "ANTENNAS webSWITCH"** — an ESP8266-based 5-way antenna switch compatible with KiwiSDR and other SDR setups.
 
