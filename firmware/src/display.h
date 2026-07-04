@@ -360,7 +360,7 @@ public:
         // Clock ticks every second (both modes show the time somewhere).
         if (timeStr.length()) {
             if ((int32_t)(now - _lastClockMs) >= 1000) {
-                    _lastClockMs += 1000;
+                    _lastClockMs = now;
                     redraw = true;
                 }
         }
@@ -544,10 +544,14 @@ private:
 
         if (effectiveClock && timeStr.length()) {
             // --- Clock-prominent layout ---
+            // Show HH:MM only (no seconds) — solid colon, no skip.
+            // timeStr is "HH:MM:SS"; take chars 0..4.
+            String hhmm = timeStr.length() >= 5 ? timeStr.substring(0, 5) : timeStr;
+
             // Top: time at size 2 (16px tall), centred vertically in top 24px.
             int timeY = (urlY - 16) / 2;
             if (timeY < 0) timeY = 0;
-            drawTextCentered(timeStr.c_str(), timeY, 2);
+            drawTextCentered(hhmm.c_str(), timeY, 2);
 
             // Bottom: "antLabel  deviceName", size 1, scrolled if too wide.
             String bottom = _clockBottomLine(label, deviceName);

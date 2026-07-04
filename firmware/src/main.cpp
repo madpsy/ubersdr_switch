@@ -1725,7 +1725,7 @@ void loop() {
         // tickBlank() handles the flashing dot while blanked.
         static uint32_t lastTick = 0;
         if (millis() - lastTick >= 250) {
-            lastTick += 250;
+            lastTick = millis();
             const DisplayBlankConfig &blk = g_settings.blank();
             if (blk.enabled && !g_oled.isBlank() && !g_revertStatusAt
                     && !g_oled.customActive()) {
