@@ -11,7 +11,7 @@ WiFi-controlled antenna switch firmware for the **MS-S5 / ANTENI.NET "ANTENNAS w
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-org/ubersdr_switch.git
+git clone https://github.com/madpsy/ubersdr_switch.git
 cd ubersdr_switch
 
 # Flash to the connected device (auto-detects port, prompts for WiFi credentials)
