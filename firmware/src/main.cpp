@@ -734,16 +734,23 @@ static void setupStationPortal() {
             return;
         }
         // POST: set locked state explicitly or toggle.
-        long iv;
+        // "locked" is a boolean — must use string search for JSON true/false, not
+        // apiIntParam(), because String("true").toInt() == 0 which would always unlock.
         bool newState = g_locked;
-        if (apiIntParam("locked", iv)) {
-            newState = (iv != 0);
-        } else if (g_portal.hasArg("plain")) {
+        if (g_portal.hasArg("plain")) {
             String body = g_portal.arg("plain");
-            int v = body.indexOf("true");
-            int f = body.indexOf("false");
-            if (v >= 0 && (f < 0 || v < f)) newState = true;
-            else if (f >= 0)                 newState = false;
+            // Look for "locked": followed by true or false.
+            String needle = "\"locked\":";
+            int k = body.indexOf(needle);
+            if (k >= 0) {
+                int vt = body.indexOf("true",  k + needle.length());
+                int vf = body.indexOf("false", k + needle.length());
+                if (vt >= 0 && (vf < 0 || vt < vf)) newState = true;
+                else if (vf >= 0)                    newState = false;
+            }
+        } else if (g_portal.hasArg("locked")) {
+            // Query-string fallback: ?locked=1 or ?locked=0
+            newState = (g_portal.arg("locked").toInt() != 0);
         }
         if (newState != g_locked) toggleLock("api");
         apiCors();
@@ -923,9 +930,9 @@ static void setupStationPortal() {
         }
         DisplayBlankConfig b = g_settings.blank();
         long iv;
-        if (apiIntParam("enabled",  iv)) b.enabled     = (iv != 0);
+        // "timeout" is a genuine integer — apiIntParam() is correct here.
         if (apiIntParam("timeout",  iv)) b.timeoutSecs = (uint8_t)constrain(iv, 1, 255);
-        // Accept JSON true/false for "enabled".
+        // "enabled" is boolean — must use string search; apiIntParam() returns 0 for "true".
         if (g_portal.hasArg("plain")) {
             String body = g_portal.arg("plain");
             auto boolField = [&](const char *key, bool &dst) {
@@ -938,6 +945,9 @@ static void setupStationPortal() {
                 else if (f >= 0)                 dst = false;
             };
             boolField("enabled", b.enabled);
+        } else if (g_portal.hasArg("enabled")) {
+            // Query-string fallback: ?enabled=1 or ?enabled=0
+            b.enabled = (g_portal.arg("enabled").toInt() != 0);
         }
         g_settings.setBlank(b);
         // If just disabled, unblank immediately.
@@ -1078,10 +1088,8 @@ static void setupStationPortal() {
             sv.toCharArray(c.pass, sizeof(c.pass));
         }
         if (apiIntParam("port",     iv)) c.port     = (uint16_t)iv;
-        if (apiIntParam("enabled",  iv)) c.enabled  = (iv != 0);
-        if (apiIntParam("retain",   iv)) c.retain   = (iv != 0);
-        if (apiIntParam("commands", iv)) c.commands = (iv != 0);
-        // Boolean fields may also arrive as JSON true/false strings.
+        // "enabled", "retain", "commands" are booleans — must use string search only;
+        // apiIntParam() returns 0 for JSON "true" which would always set them false.
         if (g_portal.hasArg("plain")) {
             String body = g_portal.arg("plain");
             auto boolField = [&](const char *key, bool &dst) {
@@ -1207,29 +1215,31 @@ static void setupStationPortal() {
             String body = g_portal.hasArg("plain") ? g_portal.arg("plain") : String();
 
             // scheduler_enabled (master switch)
+            // Check JSON body first (string search); fall back to query-string integer.
+            // apiIntParam() must NOT be tried first — String("true").toInt()==0 always.
             bool seVal = g_sched.schedEnabled();
-            if (apiIntParam("scheduler_enabled", iv)) { seVal = (iv != 0); gotGlobal = true; }
-            else if (body.length()) {
+            if (body.length()) {
                 int vt = body.indexOf("\"scheduler_enabled\":true");
                 int vf = body.indexOf("\"scheduler_enabled\":false");
                 if (vt >= 0 && (vf < 0 || vt < vf)) { seVal = true;  gotGlobal = true; }
                 else if (vf >= 0)                    { seVal = false; gotGlobal = true; }
             }
+            if (!gotGlobal && apiIntParam("scheduler_enabled", iv)) { seVal = (iv != 0); gotGlobal = true; }
             if (gotGlobal) {
                 g_sched.setSchedEnabled(seVal);
                 LOGF("schedule: scheduler_enabled=%d", (int)seVal);
             }
 
-            // respect_lock
+            // respect_lock — same pattern.
             bool gotRl = false;
             bool rlVal = g_sched.respectLock();
-            if (apiIntParam("respect_lock", iv)) { rlVal = (iv != 0); gotRl = true; }
-            else if (body.length()) {
+            if (body.length()) {
                 int vt = body.indexOf("\"respect_lock\":true");
                 int vf = body.indexOf("\"respect_lock\":false");
                 if (vt >= 0 && (vf < 0 || vt < vf)) { rlVal = true;  gotRl = true; }
                 else if (vf >= 0)                    { rlVal = false; gotRl = true; }
             }
+            if (!gotRl && apiIntParam("respect_lock", iv)) { rlVal = (iv != 0); gotRl = true; }
             if (gotRl) {
                 g_sched.setRespectLock(rlVal);
                 LOGF("schedule: respect_lock=%d", (int)rlVal);
