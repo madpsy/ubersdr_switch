@@ -360,9 +360,9 @@ public:
         // Clock ticks every second (both modes show the time somewhere).
         if (timeStr.length()) {
             if ((int32_t)(now - _lastClockMs) >= 1000) {
-                _lastClockMs = now;
-                redraw = true;
-            }
+                    _lastClockMs += 1000;
+                    redraw = true;
+                }
         }
 
         // Port-change override expiry: redraw once when the 2s window closes.
