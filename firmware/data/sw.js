@@ -1,11 +1,29 @@
 // Service worker for UberSDR Antenna Switch PWA.
-// Strategy: network-first, no caching.
-// This is a local device app — we always want the live page, never a stale cache.
-// The service worker exists solely to satisfy the PWA installability requirement.
+//
+// Strategy:
+//   - Static assets (icons, manifest, favicon) are cached on install and served
+//     from cache on subsequent loads — the ESP8266 only serves them once.
+//   - Everything else (the app page, all /api/* calls) is network-first so the
+//     UI always reflects live device state. Falls back to an offline message if
+//     the device is unreachable.
 
-const CACHE_NAME = "ubersdr-v1";
+const CACHE_NAME = "ubersdr-v2";
+
+// Static assets that never change between firmware updates.
+// Cached on SW install so the ESP8266 is not hit on every page load.
+const STATIC_ASSETS = [
+  "/favicon.ico",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/manifest.json"
+];
 
 self.addEventListener("install", function(e) {
+  e.waitUntil(
+    caches.open(CACHE_NAME).then(function(cache) {
+      return cache.addAll(STATIC_ASSETS);
+    })
+  );
   // Skip waiting so the SW activates immediately.
   self.skipWaiting();
 });
@@ -25,8 +43,20 @@ self.addEventListener("activate", function(e) {
 });
 
 self.addEventListener("fetch", function(e) {
-  // Always go to the network. If the network fails (device offline/rebooting),
-  // return a simple offline message rather than a cached stale page.
+  var url = new URL(e.request.url);
+
+  // Serve static assets from cache (cache-first).
+  if(STATIC_ASSETS.indexOf(url.pathname) !== -1) {
+    e.respondWith(
+      caches.match(e.request).then(function(cached) {
+        return cached || fetch(e.request);
+      })
+    );
+    return;
+  }
+
+  // Everything else: network-first. If the network fails (device offline /
+  // rebooting), return a simple offline message rather than a stale page.
   e.respondWith(
     fetch(e.request).catch(function() {
       return new Response(

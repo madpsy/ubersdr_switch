@@ -252,9 +252,27 @@ static String readAsset(const char *path) {
 }
 
 // Serve a LittleFS file by streaming it directly to the client — no heap copy.
-// This is essential for large files like app.html (36 KB) on a device with 80 KB RAM.
+// Serve a LittleFS asset, preferring a pre-compressed .gz sibling if present.
+// The build step (build.sh compress_assets) produces e.g. app.html.gz alongside
+// app.html; both are packed into the LittleFS image. Serving the .gz copy with
+// Content-Encoding: gzip lets the browser decompress transparently and cuts the
+// transfer size of app.html from ~84 KB to ~20 KB.
+//
+// NOTE: ESP8266WebServer::streamFile() detects filenames ending in ".gz" and
+// automatically adds "Content-Encoding: gzip" — do NOT add it manually or the
+// header will be duplicated and the browser will reject the response.
 static void servePortalAsset(const char *path, const char *mime = "text/html") {
-    File f = LittleFS.open(path, "r");
+    // Try the pre-compressed version first.
+    // streamFile() sees the ".gz" suffix and sets Content-Encoding automatically.
+    String gzPath = String(path) + ".gz";
+    File f = LittleFS.open(gzPath, "r");
+    if (f) {
+        g_portal.streamFile(f, mime);
+        f.close();
+        return;
+    }
+    // Fall back to the uncompressed file.
+    f = LittleFS.open(path, "r");
     if (!f) {
         g_portal.send(200, "text/html",
             F("<html><body><h1>ESP</h1><p>Filesystem image not uploaded.<br>"
@@ -307,7 +325,7 @@ static void serveAntennaPage() {
 // Build the JSON status object shared by every API response.
 static String apiStatusJson() {
     String j;
-    j.reserve(360);
+    j.reserve(440);
     j += F("{\"position\":");
     j += String(g_ant.position());
     j += F(",\"label\":\"");
@@ -370,6 +388,10 @@ static String apiStatusJson() {
     j += g_ntp.localIsoNow(g_settings.tzOffsetMinutes());
     j += F("\",\"tz_offset\":");
     j += String((int)g_settings.tzOffsetMinutes());
+    j += F(",\"startup_port_mode\":\"");
+    j += (g_settings.startupPortMode() == 1 ? F("last") : F("default"));
+    j += F("\",\"default_port\":");
+    j += String(g_settings.defaultPort());
     j += F("}");
     return j;
 }

@@ -960,6 +960,9 @@
     if(typeof s.max === "number") maxAnt = s.max;
     if(s.names && typeof s.names === "object") names = s.names;
     if(s.time) clockSync(s.time);
+    if(typeof s.tz_offset === "number") _tzOffsetMin = s.tz_offset;
+    if(s.startup_port_mode !== undefined) startupPortMode = s.startup_port_mode;
+    if(typeof s.default_port === "number") defaultPort = s.default_port;
 
     document.getElementById("curLabel").textContent = s.label || (s.ground ? "GROUND" : "ANT: " + s.position);
     document.getElementById("maxVal").textContent = maxAnt;
@@ -1809,23 +1812,9 @@
     }
   };
 
-  // Boot: load timezone offset immediately so the clock shows the right zone
-  // before the user opens settings. The status poll also carries tz_offset so
-  // it stays in sync after a save.
-  api("/api/ntp").then(function(n){
-    if(typeof n.tz_offset === "number") _tzOffsetMin = n.tz_offset;
-  }).catch(function(){});
-
-  // Boot: load startup port mode and default port so stars render correctly on first paint.
-  api("/api/startup-port").then(function(d){
-    startupPortMode = d.mode || "default";
-    return api("/api/default-port");
-  }).then(function(d){
-    if(typeof d.default_port === "number") defaultPort = d.default_port;
-    highlight();
-  }).catch(function(){});
-
   // Boot + poll every 3s to reflect physical-button / OLED changes.
+  // tz_offset, startup_port_mode and default_port are included in /api/status
+  // so render() keeps them in sync without separate boot fetches.
   refresh();
   setInterval(refresh, 3000);
   // Clock ticks every second (locally, no extra requests).

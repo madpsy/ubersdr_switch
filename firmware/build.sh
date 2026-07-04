@@ -54,6 +54,20 @@ PORT="${2:-${PORT:-/dev/ttyACM0}}"
 echo "==> Using PlatformIO: $PIO"
 echo "==> Project:          $SCRIPT_DIR"
 
+# Compress text assets in data/ with gzip before packing into LittleFS.
+# Both the original and .gz files are included in the image; the firmware
+# serves the .gz copy (with Content-Encoding: gzip) when present, falling
+# back to the uncompressed file for clients that don't accept gzip.
+compress_assets() {
+    echo "==> Compressing web assets..."
+    for f in data/app.html data/sw.js data/style.css; do
+        if [ -f "$f" ]; then
+            gzip -9 -k -f "$f"
+            echo "      $f -> $f.gz ($(wc -c < "$f.gz" | tr -d ' ') bytes)"
+        fi
+    done
+}
+
 copy_prebuilt() {
     mkdir -p prebuilt
     cp .pio/build/esp12e/firmware.bin  prebuilt/firmware.bin
@@ -66,12 +80,14 @@ copy_prebuilt() {
 case "$ACTION" in
     build|prebuilt)
         echo "==> Building firmware + filesystem..."
+        compress_assets
         "$PIO" run
         "$PIO" run -t buildfs
         copy_prebuilt
         ;;
     fs)
         echo "==> Building LittleFS filesystem image from data/ ..."
+        compress_assets
         "$PIO" run -t buildfs
         echo "==> Filesystem image: .pio/build/esp12e/littlefs.bin"
         ;;
@@ -81,10 +97,12 @@ case "$ACTION" in
         ;;
     uploadfs)
         echo "==> Building + flashing web assets (LittleFS) to $PORT ..."
+        compress_assets
         "$PIO" run -t uploadfs --upload-port "$PORT"
         ;;
     all)
         echo "==> Building + flashing firmware AND filesystem to $PORT ..."
+        compress_assets
         "$PIO" run -t upload   --upload-port "$PORT"
         "$PIO" run -t uploadfs --upload-port "$PORT"
         copy_prebuilt
