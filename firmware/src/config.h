@@ -110,7 +110,7 @@ static const uint16_t MQTT_DEFAULT_PORT = 1883;
 // Device display name (shown on OLED splash and in the web UI header).
 // Default "UberSDR" is used when the stored name is empty.
 static const uint8_t DEVICE_NAME_MAXLEN = 24;
-static const char    DEVICE_NAME_DEFAULT[] = "UberSDR";
+static const char    DEVICE_NAME_DEFAULT[] = "UberANT";
 
 // Persisted MQTT configuration (stored in the settings EEPROM region, so it survives a
 // filesystem reflash). `prefix` empty => default "ubersdr/<hostname>" is used at runtime.

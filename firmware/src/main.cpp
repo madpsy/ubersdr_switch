@@ -13,8 +13,9 @@
 //       - ERASE     : hold to wipe WiFi config and reboot.
 //   * SSD1306 OLED on GPIO4/5 showing "GROUND"/"ANT: n" + the web URL.
 //   * WiFiManager captive portal: SoftAP "AutoConnectAP" @ http://192.168.4.1.
-//   * Station-mode mDNS hostname "ESP-XXXXXX" (from the MAC), reachable at
-//     http://ESP-XXXXXX.local.
+//   * Station-mode mDNS hostname derived from the device name (e.g. "ubersdr"),
+//     reachable at http://ubersdr.local. Falls back to "ESP-XXXXXX" (MAC-based)
+//     when no device name is set.
 //   * Application web server: GET /5/on (Up), GET /4/on (Dn) with the exact stock HTML.
 //   * OTA firmware update at /update -> POST /u.
 //   * Boot-time gestures: hold ERASE to wipe WiFi; hold UP to force the config portal.
@@ -62,7 +63,7 @@ WiFiManager             g_wm;
 ESP8266WebServer        g_portal(80);
 ESP8266HTTPUpdateServer g_ota;
 
-String g_hostname;    // "ESP-XXXXXX"
+String g_hostname;    // derived from device name (e.g. "ubersdr"), or "ESP-XXXXXX" fallback
 bool   g_apMode = false;
 
 // UI transient-screen management: after showing MAX/erase screens, revert to status.
@@ -89,8 +90,42 @@ static void serveAntennaPage();
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Sanitise a device name into a valid mDNS/DNS hostname label:
+//   - lowercase, alphanumeric + hyphens only
+//   - leading/trailing hyphens stripped
+//   - runs of invalid chars collapsed to a single hyphen
+//   - capped at 32 chars (well within the 63-char DNS label limit)
+// Returns an empty string if nothing valid remains.
+static String sanitiseHostname(const char *name) {
+    String out;
+    out.reserve(32);
+    bool lastHyphen = true;   // suppress leading hyphens
+    for (int i = 0; name[i] && (int)out.length() < 32; i++) {
+        char c = name[i];
+        if (isAlphaNumeric(c)) {
+            out += (char)tolower(c);
+            lastHyphen = false;
+        } else {
+            // Any non-alphanumeric char becomes a hyphen (collapsed).
+            if (!lastHyphen) { out += '-'; lastHyphen = true; }
+        }
+    }
+    // Strip trailing hyphen.
+    while (out.length() > 0 && out[out.length() - 1] == '-')
+        out.remove(out.length() - 1);
+    return out;
+}
+
 static String deviceHostname() {
-    // Match the stock naming scheme: "ESP-" + last 3 bytes of the STA MAC, upper hex.
+    // Prefer a hostname derived from the device name (if one has been set).
+    // Falls back to the stock "ESP-XXXXXX" MAC-based name when the device name
+    // is empty or sanitises to nothing usable.
+    const char *devName = g_settings.deviceName();
+    if (devName && devName[0] != '\0') {
+        String h = sanitiseHostname(devName);
+        if (h.length() > 0) return h;
+    }
+    // Fallback: "ESP-" + last 3 bytes of the STA MAC, upper hex.
     // (Original unit: MAC cc:50:e3:45:ca:21 -> "ESP-45CA21".)
     uint8_t mac[6];
     WiFi.macAddress(mac);
@@ -1067,6 +1102,19 @@ static void setupStationPortal() {
         if (apiStrParam("device_name", sv)) {
             g_settings.setDeviceName(sv.c_str());
             LOGF("settings: device_name set to '%s'", g_settings.deviceName());
+            // Recompute the hostname from the new device name and re-register mDNS.
+            String newHostname = deviceHostname();
+            if (newHostname != g_hostname) {
+                g_hostname = newHostname;
+                WiFi.hostname(g_hostname);
+                MDNS.end();
+                if (MDNS.begin(g_hostname.c_str())) {
+                    MDNS.addService("http", "tcp", 80);
+                    LOGF("mDNS: re-registered as http://%s.local", g_hostname.c_str());
+                } else {
+                    LOG("mDNS: re-register FAILED");
+                }
+            }
         }
         // Re-initialise the MQTT client with the new config (takes effect immediately).
         g_mqtt.begin(g_settings.mqtt(), g_hostname,

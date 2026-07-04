@@ -961,7 +961,7 @@
 
     document.getElementById("curLabel").textContent = s.label || (s.ground ? "GROUND" : "ANT: " + s.position);
     document.getElementById("maxVal").textContent = maxAnt;
-    document.getElementById("curHost").textContent = s.hostname || "";
+    document.getElementById("curHost").textContent = s.hostname ? s.hostname + ".local" : "";
     var url = s.url || "";
     var a = document.getElementById("curUrl");
     a.textContent = url || "(IP unset)";
@@ -1217,8 +1217,8 @@
     // Populate MQTT command examples with live broker config.
     api("/api/mqtt").then(function(c){
       var broker = c.host || "…";
-      var hostname = document.getElementById("curHost").textContent || "ESP-XXXXXX";
-      var prefix = (c.prefix && c.prefix.length) ? c.prefix : ("ubersdr/" + hostname);
+      var hostnameRaw = (document.getElementById("curHost").textContent || "ESP-XXXXXX").replace(/\.local$/, "");
+      var prefix = (c.prefix && c.prefix.length) ? c.prefix : ("ubersdr/" + hostnameRaw);
       [1,2,3,4,5,6].forEach(function(i){
         var hEl = document.getElementById("mqttCmdHost" + (i===1?"":i));
         var pEl = document.getElementById("mqttCmdPfx"  + (i===1?"":i));
