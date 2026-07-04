@@ -4,6 +4,22 @@ WiFi-controlled antenna switch firmware for the **MS-S5 / ANTENI.NET "ANTENNAS w
 
 ---
 
+## Screenshots
+
+| Main | Schedule |
+|------|----------|
+| ![Main](images/ant-main.png) | ![Schedule](images/ant-schedule.png) |
+
+| Settings | Settings (cont.) |
+|----------|-----------------|
+| ![Settings 1](images/ant-settings1.png) | ![Settings 2](images/ant-setting2.png) |
+
+| Log | Help |
+|-----|------|
+| ![Log](images/ant-log.png) | ![Help](images/ant-help.png) |
+
+---
+
 ## Quick install (flash prebuilt firmware)
 
 ### Physical setup
