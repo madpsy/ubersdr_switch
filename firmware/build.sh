@@ -7,13 +7,13 @@
 # executable (including the PlatformIO-bundled copy under ~/.platformio).
 #
 # Usage:
-#   ./build.sh                 # build firmware only (default)
-#   ./build.sh build           # build firmware only
-#   ./build.sh fs              # build the LittleFS filesystem image (data/)
+#   ./build.sh                 # build firmware + filesystem, copy both to prebuilt/ (default)
+#   ./build.sh build           # same as default
+#   ./build.sh fs              # build the LittleFS filesystem image (data/) only
 #   ./build.sh upload  [PORT]  # build + flash firmware over USB
 #   ./build.sh uploadfs [PORT] # build + flash the web assets to LittleFS
 #   ./build.sh all     [PORT]  # build + flash BOTH firmware and filesystem
-#   ./build.sh prebuilt        # build both + copy to prebuilt/ (for committing)
+#   ./build.sh prebuilt        # build both + copy to prebuilt/ (explicit alias for default)
 #   ./build.sh monitor [PORT]  # open the serial monitor (conflicts with UP/DOWN btns)
 #   ./build.sh clean           # remove build artifacts
 #
@@ -54,11 +54,21 @@ PORT="${2:-${PORT:-/dev/ttyACM0}}"
 echo "==> Using PlatformIO: $PIO"
 echo "==> Project:          $SCRIPT_DIR"
 
+copy_prebuilt() {
+    mkdir -p prebuilt
+    cp .pio/build/esp12e/firmware.bin  prebuilt/firmware.bin
+    cp .pio/build/esp12e/littlefs.bin  prebuilt/littlefs.bin
+    echo "==> Prebuilt binaries updated:"
+    echo "      prebuilt/firmware.bin  ($(wc -c < prebuilt/firmware.bin | tr -d ' ') bytes)"
+    echo "      prebuilt/littlefs.bin  ($(wc -c < prebuilt/littlefs.bin | tr -d ' ') bytes)"
+}
+
 case "$ACTION" in
-    build)
-        echo "==> Building firmware..."
+    build|prebuilt)
+        echo "==> Building firmware + filesystem..."
         "$PIO" run
-        echo "==> Firmware image: .pio/build/esp12e/firmware.bin"
+        "$PIO" run -t buildfs
+        copy_prebuilt
         ;;
     fs)
         echo "==> Building LittleFS filesystem image from data/ ..."
@@ -77,23 +87,13 @@ case "$ACTION" in
         echo "==> Building + flashing firmware AND filesystem to $PORT ..."
         "$PIO" run -t upload   --upload-port "$PORT"
         "$PIO" run -t uploadfs --upload-port "$PORT"
+        copy_prebuilt
         echo "==> Done. Both firmware and web assets flashed."
         ;;
     monitor)
         echo "==> Opening serial monitor on $PORT (Ctrl-C to exit) ..."
         echo "    NOTE: GPIO1/GPIO3 are the DOWN/UP buttons; serial conflicts with them."
         "$PIO" device monitor --port "$PORT"
-        ;;
-    prebuilt)
-        echo "==> Building firmware + filesystem and copying to prebuilt/ ..."
-        "$PIO" run
-        "$PIO" run -t buildfs
-        mkdir -p prebuilt
-        cp .pio/build/esp12e/firmware.bin  prebuilt/firmware.bin
-        cp .pio/build/esp12e/littlefs.bin  prebuilt/littlefs.bin
-        echo "==> Prebuilt binaries updated:"
-        echo "      prebuilt/firmware.bin  ($(wc -c < prebuilt/firmware.bin) bytes)"
-        echo "      prebuilt/littlefs.bin  ($(wc -c < prebuilt/littlefs.bin) bytes)"
         ;;
     clean)
         echo "==> Cleaning build artifacts..."
