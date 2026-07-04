@@ -966,7 +966,16 @@
     var a = document.getElementById("curUrl");
     a.textContent = url || "(IP unset)";
     a.href = url || "#";
-    document.getElementById("liveDot").classList.add("live");
+    var liveDot = document.getElementById("liveDot");
+    if(s.ground){
+      liveDot.classList.remove("live");
+      liveDot.style.background = "var(--err)";
+      liveDot.style.boxShadow  = "0 0 8px var(--err)";
+    } else {
+      liveDot.classList.add("live");
+      liveDot.style.background = "";
+      liveDot.style.boxShadow  = "";
+    }
 
     // Update page title and header brand with device name (plain white, no accent split).
     if(s.device_name){
