@@ -20,11 +20,13 @@
 // ---------------------------------------------------------------------------
 
 // 74HCT138 3-to-8 decoder select lines (outputs). The firmware writes the antenna
-// position index (0..7) as a plain binary number across these three lines:
-//   A0 = GPIO12 (LSB), A1 = GPIO13, A2 = GPIO14 (MSB).
-static const uint8_t PIN_SEL_A0 = 12;  // 74HCT138 A0 (LSB)
-static const uint8_t PIN_SEL_A1 = 13;  // 74HCT138 A1
-static const uint8_t PIN_SEL_A2 = 14;  // 74HCT138 A2 (MSB)
+// position index (0..7) as a plain binary number across these three lines.
+// NOTE: the PCB traces connect the GPIOs to the 74HCT138 address pins in a
+// different order than the disassembly write-order implied. Verified against
+// physical relay behaviour: GPIO14→A0(LSB), GPIO12→A1, GPIO13→A2(MSB).
+static const uint8_t PIN_SEL_A0 = 14;  // 74HCT138 A0 (LSB)
+static const uint8_t PIN_SEL_A1 = 12;  // 74HCT138 A1
+static const uint8_t PIN_SEL_A2 = 13;  // 74HCT138 A2 (MSB)
 
 // Four momentary push-buttons, all active-low with internal pull-ups enabled.
 // (GPIO1/GPIO3 double as UART0 TX/RX — used as inputs only, as in the stock FW.)
@@ -143,8 +145,44 @@ static const int EEPROM_SETTINGS_SIZE =
     + (MQTT_HOST_MAXLEN + 1) + (MQTT_USER_MAXLEN + 1)
     + (MQTT_PASS_MAXLEN + 1) + (MQTT_PREFIX_MAXLEN + 1)
     + (DEVICE_NAME_MAXLEN + 1)
-    + (NTP_HOST_MAXLEN + 1) + 2 /*ntp_port*/;
-static const int EEPROM_TOTAL_SIZE = EEPROM_SETTINGS_BASE + EEPROM_SETTINGS_SIZE;
+    + (NTP_HOST_MAXLEN + 1) + 2 /*ntp_port*/
+    + 2 /*display_blank: 1 flag + 1 timeout_secs*/
+    + 2 /*tz_offset_minutes: signed int16 LE*/
+    + 1 /*display_mode: 0=port, 1=clock*/
+    + 1 /*default_port: 0=GROUND, 1-7=ANT1-ANT7, 0xFF=unset→GROUND*/
+    + 1 /*startup_port_mode: 0=default_port, 1=last_port*/;
+
+// ---------------------------------------------------------------------------
+// Schedule block — stored AFTER the settings block.
+// Header (2 bytes):
+//   [0] magic SCHED_MAGIC (0xC3)
+//   [1] global_flags: bit0 = respect_lock (scheduler won't fire while locked)
+//                     bit1 = scheduler_enabled (master on/off; default on)
+// Per entry (5 bytes each, up to SCHED_MAX_ENTRIES):
+//   [0] flags: bit0=enabled
+//   [1] days_mask: bits 0..6 = Sun..Sat (0x7F = every day)
+//   [2] hour   (0–23, local time using stored tz_offset)
+//   [3] minute (0–59)
+//   [4] position (0–7: 0=GROUND, 1..7=ANT1..ANT7)
+// ---------------------------------------------------------------------------
+static const uint8_t SCHED_MAGIC       = 0xC3;
+static const uint8_t SCHED_MAX_ENTRIES = 10;
+static const int     SCHED_ENTRY_SIZE  = 5;   // bytes per entry
+static const int     EEPROM_SCHED_BASE = EEPROM_SETTINGS_BASE + EEPROM_SETTINGS_SIZE;
+static const int     EEPROM_SCHED_SIZE = 2 /*magic+global_flags*/ + SCHED_MAX_ENTRIES * SCHED_ENTRY_SIZE; // 52
+
+static const int EEPROM_TOTAL_SIZE = EEPROM_SCHED_BASE + EEPROM_SCHED_SIZE;
+
+// ---------------------------------------------------------------------------
+// Display blank (screen-saver) settings
+// ---------------------------------------------------------------------------
+
+// After this many seconds of inactivity the OLED is blanked (screen-saver).
+// While blanked a single pixel dot flashes in the bottom-left corner.
+// Any antenna change or custom-message call wakes the display immediately.
+static const uint8_t DISPLAY_BLANK_TIMEOUT_DEFAULT = 5;   // seconds
+static const uint8_t DISPLAY_BLANK_TIMEOUT_MIN     = 1;
+static const uint8_t DISPLAY_BLANK_TIMEOUT_MAX     = 255;
 
 // ---------------------------------------------------------------------------
 // On-screen / web selection labels  (docs/web-interface.md §1.4, docs/buttons.md)

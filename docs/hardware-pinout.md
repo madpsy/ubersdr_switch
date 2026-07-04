@@ -14,9 +14,9 @@ to the Arduino core primitives `__digitalWrite(pin,val)` (`0x401002fc`) and
 
 | GPIO | Dir | Net / Function | Notes |
 |------|-----|----------------|-------|
-| GPIO12 | OUT | 74HCT138 **A0** (LSB) | decoder select bit 0 |
-| GPIO13 | OUT | 74HCT138 **A1** | decoder select bit 1 |
-| GPIO14 | OUT | 74HCT138 **A2** (MSB) | decoder select bit 2 |
+| GPIO14 | OUT | 74HCT138 **A0** (LSB) | decoder select bit 0 |
+| GPIO12 | OUT | 74HCT138 **A1** | decoder select bit 1 |
+| GPIO13 | OUT | 74HCT138 **A2** (MSB) | decoder select bit 2 |
 | GPIO0  | IN  | **SET** button (max antenna count) | active-low, internal pull-up, shows `MAX` |
 | GPIO1  | IN  | **DOWN** button | active-low, internal pull-up (also UART0 TX pin) |
 | GPIO2  | IN  | **ERASE** button (hold) | active-low, internal pull-up |
@@ -33,9 +33,9 @@ to the Arduino core primitives `__digitalWrite(pin,val)` (`0x401002fc`) and
 Recovered verbatim from the disassembly at `0x40204504`:
 
 ```c
-digitalWrite(14, HIGH);   // 74HCT138 A2
-digitalWrite(12, HIGH);   // 74HCT138 A0
-digitalWrite(13, HIGH);   // 74HCT138 A1
+digitalWrite(14, HIGH);   // 74HCT138 A0
+digitalWrite(12, HIGH);   // 74HCT138 A1
+digitalWrite(13, HIGH);   // 74HCT138 A2
 digitalWrite(1,  HIGH);   // DOWN  pull-up
 digitalWrite(3,  HIGH);   // UP    pull-up
 digitalWrite(2,  HIGH);   // ERASE pull-up
@@ -49,7 +49,7 @@ line LOW when pressed.)
 ## Signal chain
 
 ```
-ESP8266 GPIO12/13/14  ─►  74HCT138  ─►  relay drivers (R11–R15 + transistors)
+ESP8266 GPIO14/12/13  ─►  74HCT138  ─►  relay drivers (R11–R15 + transistors)
    (3-bit select)         (1-of-8)      ─►  relays RL1–RL5 (+ flyback D1–D5)
                                         ─►  one SMA antenna (A1–A5) → common "Radio" SMA
 ```

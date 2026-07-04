@@ -3,11 +3,18 @@
 //
 // Reproduces the stock on-screen behaviour (docs/manual-setup.md, docs/buttons.md):
 //
-//   * Normal:   antenna label ("GROUND" / "ANT: n") + the device web address
-//               ("http://(IP unset)" until an IP is assigned).
+//   * Normal:   antenna label ("GROUND" / "ANT: n") + device name + clock underneath.
 //   * SET:      "MAX n"
 //   * ERASE:    "press ERASE for erase stored information" / "ERASE" / "hold the button"
 //               with a countdown, and the AP-mode SSID/URL screen.
+//
+// Two display modes (selectable in Settings → Display):
+//   Port mode  (default): antenna label is the large text; device name + clock is small.
+//   Clock mode:           time is the large text; antenna label + device name is small.
+//
+// In both modes, when the antenna position changes, the display temporarily switches to
+// Port layout for PORT_CHANGE_SHOW_MS (2 s) so the user sees clear confirmation of the
+// switch, then reverts to the configured mode.
 //
 // HARDWARE (Heltec WiFi Kit 8 / HTIT-W8266):
 //   * Controller : SSD1306 (0.91" 128x32 panel).
@@ -28,11 +35,16 @@
 
 #include "config.h"
 #include "debuglog.h"
+#include "settings.h"
 
 // Heltec WiFi Kit 8: 0.91" 128x32 SSD1306 over I2C, RESET on GPIO16 (see config.h).
 #define OLED_W    128
 #define OLED_H    32
 #define OLED_RST  PIN_OLED_RST
+
+// How long (ms) to show the port-prominent layout after an antenna change, even in
+// clock mode, so the user gets clear visual confirmation of the switch.
+static const uint32_t PORT_CHANGE_SHOW_MS = 2000;
 
 class Display {
 public:
@@ -146,32 +158,245 @@ public:
         _oled->display();
     }
 
-    // Main status screen: antenna label (as BIG as fits) + web address underneath.
-    // The URL is long, so it stays at size 1 on the bottom row; the short antenna
-    // label is scaled up to fill the remaining top area of the 128x32 panel.
+    // Inform the display of the current lock state so the padlock indicator can be
+    // drawn. Call whenever the lock state changes (from main.cpp).
+    void setLocked(bool locked) {
+        if (_locked != locked) {
+            _locked = locked;
+            // Force a redraw on the next tick so the padlock appears/disappears.
+            if (!_blanked && !customActive()) {
+                _redrawStatus();
+            }
+        }
+    }
+
+    // Notify the display that the antenna position just changed. In clock mode this
+    // triggers a 2-second override showing the port-prominent layout so the user gets
+    // clear visual confirmation of the switch. In port mode this is a no-op (the label
+    // is already prominent). Call at every antenna-change site in main.cpp.
+    void notifyPortChange() {
+        _portChangedAt = millis();
+        // Force an immediate redraw so the new label appears without waiting for the
+        // next tickStatus() call.
+        if (!_blanked && !customActive()) {
+            _redrawStatus();
+        }
+    }
+
+    // Main status screen: antenna label + device name/clock underneath.
+    // Stores the label for use by tickStatus() and redraws immediately.
     void showStatus(const String &label, const String &url) {
         if (!_oled) return;
-        _oled->clearDisplay();
+        // Store for the tick loop (url kept for potential future use but not shown).
+        _statusLabel = label;
+        _statusUrl   = url;
+        // Reset scroll state.
+        _scrollPx     = 0;
+        _lastScrollMs = millis();
+        _redrawStatus();
+    }
 
-        const char *u = url.length() ? url.c_str() : STR_IP_UNSET;
-        const int urlH = 8;                    // size-1 glyph height
-        const int urlY = OLED_H - urlH;        // bottom row (y=24)
+    // Display a custom message on the OLED for `durationMs` milliseconds (default 1000).
+    //
+    // Multi-line: split on '\n' (or the two-char sequence "\\n" from JSON strings).
+    // Auto-sizes to the largest font where ALL lines fit the panel width AND the total
+    // block height fits the 32px panel:
+    //   size 3: 24px/line — fits 1 line,  max 6 chars/line
+    //   size 2: 16px/line — fits 2 lines, max 10 chars/line
+    //   size 1:  8px/line — fits 4 lines, max 21 chars/line
+    // Lines that are still too wide at size 1 are truncated with '>'.
+    // `align`: 'L' = left, 'R' = right, anything else = centre (default).
+    // `wasBlank`: pass true if the display was blanked when this call was triggered
+    // (checked by the caller before any unblank side-effects). When true, the display
+    // re-blanks immediately after the message duration expires.
+    void showCustomMessage(const String &text, char align = 'C', uint32_t durationMs = 1000,
+                           bool wasBlank = false) {
+        if (!_oled) return;
+        if (durationMs < 100) durationMs = 100;
+        _reblankAfterCustom = wasBlank;
+        _blanked    = false;              // ensure display is active while message shows
+        _customUntil = millis() + durationMs;
 
-        // Largest label size whose width fits the panel and whose height fits the
-        // space above the URL row. Try size 3 (24px) down to 1.
+        // Normalise "\\n" (two chars: backslash + n) -> '\n' so JSON payloads work.
+        String src = text;
+        src.replace("\\n", "\n");
+
+        // Split into lines (up to 4 — the max at size 1).
+        String lines[4];
+        uint8_t nLines = 0;
+        int start = 0;
+        for (int i = 0; i <= (int)src.length() && nLines < 4; i++) {
+            if (i == (int)src.length() || src[i] == '\n') {
+                lines[nLines++] = src.substring(start, i);
+                start = i + 1;
+            }
+        }
+        if (nLines == 0) nLines = 1;
+
+        // Find the longest line (in chars).
+        int maxChars = 0;
+        for (uint8_t i = 0; i < nLines; i++) {
+            if ((int)lines[i].length() > maxChars) maxChars = (int)lines[i].length();
+        }
+
+        // Pick the largest size where all lines fit width AND total height fits panel.
         uint8_t size = 3;
         for (; size > 1; size--) {
-            int w = (int)label.length() * 6 * size;
-            int h = 8 * size;
-            if (w <= OLED_W && h <= urlY) break;   // fits width AND above the URL
+            bool wOk = (maxChars * 6 * size <= OLED_W);
+            bool hOk = ((int)nLines * 8 * size <= OLED_H);
+            if (wOk && hOk) break;
         }
-        int labelH = 8 * size;
-        int labelY = (urlY - labelH) / 2;          // vertically centre in the top area
-        if (labelY < 0) labelY = 0;
 
-        drawTextCentered(label.c_str(), labelY, size);
-        drawTextCentered(u, urlY, 1);
+        int glyphH   = 8 * size;
+        int blockH   = (int)nLines * glyphH;
+        int startY   = (OLED_H - blockH) / 2;
+        if (startY < 0) startY = 0;
+
+        _oled->clearDisplay();
+        _oled->setTextSize(size);
+
+        for (uint8_t i = 0; i < nLines; i++) {
+            String &ln = lines[i];
+            // Truncate with '>' if still too wide at size 1.
+            if (size == 1 && (int)ln.length() * 6 > OLED_W) {
+                ln = ln.substring(0, 20) + ">";
+            }
+            int lw = (int)ln.length() * 6 * size;
+            int x;
+            if      (align == 'L') x = 0;
+            else if (align == 'R') x = OLED_W - lw;
+            else                   x = (OLED_W - lw) / 2;
+            if (x < 0) x = 0;
+            _oled->setCursor(x, startY + (int)i * glyphH);
+            _oled->print(ln.c_str());
+        }
+
         _oled->display();
+    }
+
+    // Returns true while a custom message is being shown.
+    bool customActive() const {
+        return _customUntil != 0 && (int32_t)(millis() - _customUntil) < 0;
+    }
+
+    // Returns true while the display is blanked (screen-saver active).
+    bool isBlank() const { return _blanked; }
+
+    // Blank the display immediately (screen-saver on). A single pixel dot flashes
+    // in the bottom-left corner at ~1 Hz so the user knows the device is alive.
+    void blankDisplay() {
+        if (!_oled) return;
+        _blanked    = true;
+        _dotOn      = false;
+        _lastDotMs  = millis();
+        _oled->clearDisplay();
+        _oled->display();
+    }
+
+    // Wake the display from blank. Redraws the status screen immediately.
+    void unblankDisplay() {
+        if (!_blanked) return;
+        _blanked = false;
+        _redrawStatus();
+    }
+
+    // Call every ~250 ms from loop() while blanked. Flashes a 2×2 dot in the
+    // bottom-left corner at ~1 Hz to show the device is alive.
+    void tickBlank() {
+        if (!_oled || !_blanked) return;
+        uint32_t now = millis();
+        if ((int32_t)(now - _lastDotMs) < 500) return;
+        _lastDotMs = now;
+        _dotOn = !_dotOn;
+        _oled->clearDisplay();
+        if (_dotOn) {
+            // 2×2 pixel dot at bottom-left (x=0, y=30).
+            _oled->drawPixel(0, OLED_H - 2, SSD1306_WHITE);
+            _oled->drawPixel(1, OLED_H - 2, SSD1306_WHITE);
+            _oled->drawPixel(0, OLED_H - 1, SSD1306_WHITE);
+            _oled->drawPixel(1, OLED_H - 1, SSD1306_WHITE);
+        }
+        _oled->display();
+    }
+
+    // Call every ~250 ms from loop() while in normal station mode.
+    //
+    // Port mode:  large antenna label on top; "deviceName  HH:MM:SS" on the bottom row.
+    // Clock mode: large "HH:MM:SS" on top; "antLabel  deviceName" on the bottom row.
+    //
+    // Port-change override: for PORT_CHANGE_SHOW_MS after notifyPortChange() is called,
+    // always renders in port-prominent layout regardless of the configured mode, so the
+    // user sees clear confirmation of the switch.
+    //
+    // `deviceName` and `timeStr` ("HH:MM:SS" local, or "" if NTP not synced) are
+    // passed in from main.cpp so display.h stays dependency-free.
+    // `clockMode`: true = clock-prominent mode, false = port-prominent mode.
+    // No-ops while a custom message is active or the display is blanked.
+    void tickStatus(const String &deviceName, const String &timeStr, bool clockMode) {
+        if (!_oled) return;
+        if (_blanked) return;
+        if (customActive()) return;
+        // Custom message just expired.
+        if (_customUntil) {
+            _customUntil = 0;
+            if (_reblankAfterCustom) {
+                _reblankAfterCustom = false;
+                blankDisplay();
+                return;
+            }
+            _redrawStatus(deviceName, timeStr, clockMode);
+        }
+
+        uint32_t now = millis();
+
+        // Determine effective mode: port-change override takes priority.
+        bool portOverride = (_portChangedAt != 0 &&
+                             (int32_t)(now - _portChangedAt) < (int32_t)PORT_CHANGE_SHOW_MS);
+        bool effectiveClockMode = clockMode && !portOverride;
+
+        // Decide whether to redraw this tick.
+        bool redraw = false;
+
+        // Clock ticks every second (both modes show the time somewhere).
+        if (timeStr.length()) {
+            if ((int32_t)(now - _lastClockMs) >= 1000) {
+                _lastClockMs = now;
+                redraw = true;
+            }
+        }
+
+        // Port-change override expiry: redraw once when the 2s window closes.
+        if (_portChangedAt != 0 && !portOverride) {
+            _portChangedAt = 0;
+            redraw = true;
+        }
+
+        // Bottom-line scroll — both modes may need it.
+        {
+            String bottom = effectiveClockMode
+                ? _clockBottomLine(_statusLabel, deviceName)
+                : _bottomLine(deviceName, timeStr);
+            int textW = (int)bottom.length() * 6;
+            int &scrollPx  = effectiveClockMode ? _clockScrollPx  : _scrollPx;
+            uint32_t &scrollMs = effectiveClockMode ? _clockScrollMs : _lastScrollMs;
+            if (textW > OLED_W) {
+                if ((int32_t)(now - scrollMs) >= 40) {
+                    scrollMs = now;
+                    scrollPx++;
+                    if (scrollPx > 25) {
+                        int travel = textW - OLED_W + 4;
+                        if (scrollPx - 25 >= travel + 25) scrollPx = 0;
+                    }
+                    redraw = true;
+                }
+            } else {
+                // Text fits — reset scroll so it starts from the left if it grows.
+                scrollPx = 0;
+            }
+        }
+
+        if (!redraw) return;
+        _redrawStatus(deviceName, timeStr, clockMode);
     }
 
     // SET button: "MAX n".
@@ -248,8 +473,157 @@ private:
         _oled->print(text);
     }
 
+    // Build the bottom-line string for port mode: "deviceName  HH:MM:SS".
+    String _bottomLine(const String &deviceName, const String &timeStr) const {
+        String s = deviceName;
+        if (timeStr.length()) {
+            s += "  ";
+            s += timeStr;
+        }
+        return s;
+    }
+
+    // Build the bottom-line string for clock mode: "antLabel  deviceName".
+    String _clockBottomLine(const String &label, const String &deviceName) const {
+        String s = label;
+        if (deviceName.length()) {
+            s += "  ";
+            s += deviceName;
+        }
+        return s;
+    }
+
+    // Redraw the status screen using stored _statusLabel and the supplied runtime
+    // strings. Overload with no args uses empty strings (for lock-state redraws).
+    void _redrawStatus() {
+        _drawStatusImpl(_statusLabel, String(), String(), false, 0);
+    }
+    void _redrawStatus(const String &deviceName, const String &timeStr, bool clockMode) {
+        uint32_t now = millis();
+        bool portOverride = (_portChangedAt != 0 &&
+                             (int32_t)(now - _portChangedAt) < (int32_t)PORT_CHANGE_SHOW_MS);
+        bool effectiveClock = clockMode && !portOverride;
+        int scrollOff = 0;
+        if (effectiveClock) {
+            String bottom = _clockBottomLine(_statusLabel, deviceName);
+            int textW = (int)bottom.length() * 6;
+            if (textW > OLED_W && _clockScrollPx > 25) {
+                int travel = textW - OLED_W + 4;
+                scrollOff = _clockScrollPx - 25;
+                if (scrollOff > travel) scrollOff = travel;
+            }
+        } else {
+            String bottom = _bottomLine(deviceName, timeStr);
+            int textW = (int)bottom.length() * 6;
+            if (textW > OLED_W && _scrollPx > 25) {
+                int travel = textW - OLED_W + 4;
+                scrollOff = _scrollPx - 25;
+                if (scrollOff > travel) scrollOff = travel;
+            }
+        }
+        _drawStatusImpl(_statusLabel, deviceName, timeStr, effectiveClock, scrollOff);
+    }
+
+    // Core renderer. Two layouts:
+    //
+    // Port mode (effectiveClock=false):
+    //   Top ~24px: antenna label, auto-sized 3→2→1
+    //   Bottom 8px: "deviceName  HH:MM:SS", size 1, scrolled if too wide
+    //
+    // Clock mode (effectiveClock=true, timeStr non-empty):
+    //   Top 16px: "HH:MM:SS", size 2, centred
+    //   Bottom 8px: "antLabel  deviceName", size 1, centred (truncated if needed)
+    //   Falls back to port mode if timeStr is empty (NTP not synced).
+    void _drawStatusImpl(const String &label, const String &deviceName,
+                         const String &timeStr, bool effectiveClock, int scrollOff) {
+        if (!_oled) return;
+        _oled->clearDisplay();
+
+        const int urlH = 8;
+        const int urlY = OLED_H - urlH;   // y=24
+
+        if (effectiveClock && timeStr.length()) {
+            // --- Clock-prominent layout ---
+            // Top: time at size 2 (16px tall), centred vertically in top 24px.
+            int timeY = (urlY - 16) / 2;
+            if (timeY < 0) timeY = 0;
+            drawTextCentered(timeStr.c_str(), timeY, 2);
+
+            // Bottom: "antLabel  deviceName", size 1, scrolled if too wide.
+            String bottom = _clockBottomLine(label, deviceName);
+            _oled->setTextSize(1);
+            int bw = (int)bottom.length() * 6;
+            int bx = (bw <= OLED_W) ? (OLED_W - bw) / 2 : -scrollOff;
+            _oled->setCursor(bx, urlY);
+            _oled->print(bottom.c_str());
+        } else {
+            // --- Port-prominent layout ---
+            // Top: antenna label, auto-sized to fill the top area.
+            uint8_t size = 3;
+            for (; size > 1; size--) {
+                int w = (int)label.length() * 6 * size;
+                int h = 8 * size;
+                if (w <= OLED_W && h <= urlY) break;
+            }
+            int labelH = 8 * size;
+            int labelY = (urlY - labelH) / 2;
+            if (labelY < 0) labelY = 0;
+            drawTextCentered(label.c_str(), labelY, size);
+
+            // Bottom: "deviceName  HH:MM:SS", size 1, scrolled if too wide.
+            String bottom = _bottomLine(deviceName, timeStr);
+            _oled->setTextSize(1);
+            int bw = (int)bottom.length() * 6;
+            int bx = (bw <= OLED_W) ? (OLED_W - bw) / 2 : -scrollOff;
+            _oled->setCursor(bx, urlY);
+            _oled->print(bottom.c_str());
+        }
+
+        // Padlock indicator: pixel-drawn 7×9 padlock in the top-right corner.
+        if (_locked) {
+            const int px = OLED_W - 7;  // x=121
+            const int py = 0;
+            _oled->drawLine(px+1, py+1, px+1, py+3, SSD1306_WHITE);
+            _oled->drawLine(px+5, py+1, px+5, py+3, SSD1306_WHITE);
+            _oled->drawLine(px+2, py,   px+4, py,   SSD1306_WHITE);
+            _oled->fillRect(px, py+4, 7, 5, SSD1306_WHITE);
+            _oled->drawPixel(px+3, py+6, SSD1306_BLACK);
+        }
+
+        _oled->display();
+    }
+
     Adafruit_SSD1306 *_oled = nullptr;
     uint8_t  _addr    = 0;
     uint8_t  _i2caddr = 0x3C;
     bool     _ok      = false;
+
+    // Status screen state.
+    String   _statusLabel;
+    String   _statusUrl;   // stored but not currently displayed (reserved for future use)
+
+    // Clock tick.
+    uint32_t _lastClockMs = 0;
+
+    // Bottom-line scroll — port mode.
+    int      _scrollPx     = 0;
+    uint32_t _lastScrollMs = 0;
+    // Bottom-line scroll — clock mode.
+    int      _clockScrollPx  = 0;
+    uint32_t _clockScrollMs  = 0;
+
+    // Port-change override: non-zero for PORT_CHANGE_SHOW_MS after notifyPortChange().
+    uint32_t _portChangedAt = 0;
+
+    // Custom message: non-zero while a showCustomMessage() display is active.
+    uint32_t _customUntil          = 0;
+    bool     _reblankAfterCustom   = false;
+
+    // Screen-saver / blank state.
+    bool     _blanked    = false;
+    bool     _dotOn      = false;
+    uint32_t _lastDotMs  = 0;
+
+    // Lock indicator.
+    bool     _locked     = false;
 };

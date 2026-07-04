@@ -310,14 +310,41 @@ it to **4 antennas** the sequential switching after position 4 will go to `GROUN
 
 ### Summary of manual-control buttons
 
-| Manual label | Action | On-screen prompt |
-|--------------|--------|------------------|
-| **UP** | Step to the next antenna position | `ANT: n` (or `GROUND`) |
-| **DOWN** | Step to the previous antenna position | `ANT: n` (or `GROUND`) |
-| **max. NUMBER of ANTENNAS** | Short-press repeatedly to limit the number of antennas in the switching sequence | `MAX n` |
+| Button | Short press | Hold 3 s |
+|--------|-------------|----------|
+| **▲ UP** | Step to next antenna | Toggle **lock / unlock** — blocks all antenna changes |
+| **▼ DOWN** | Step to previous antenna | Show **IP address** on OLED for 3 s |
+| **SET** (max. NUMBER of ANTENNAS) | Bump max antennas (wraps 0→7→0) | — |
+| **ERASE** | — | Wipe WiFi credentials and reboot |
 
 > After changing the maximum-antenna limit, power-cycle the unit (off then on) to
 > confirm the new setting has taken effect.
+
+### Lock / unlock (hold UP)
+
+Hold the **▲ UP** button for **3 seconds** to toggle the antenna lock. When locked:
+
+- The OLED shows a small padlock icon in the top-right corner.
+- UP/DOWN button presses are ignored (the OLED shows `LOCKED / Hold UP 3s`).
+- REST API antenna-change calls return HTTP 423.
+- MQTT antenna commands are silently ignored.
+
+Hold UP for 3 s again to unlock. Lock state resets to unlocked on reboot.
+
+### Show IP address (hold DOWN)
+
+Hold the **▼ DOWN** button for **3 seconds** to display the device's IP address on the
+OLED for 3 seconds:
+
+```
++----------------------+
+|    192.168.1.42      |
++----------------------+
+```
+
+After 3 seconds the normal status screen resumes automatically. If the device is not
+connected to WiFi, `No WiFi` is shown instead. This is the quickest way to find the
+device's address without a browser or router admin panel.
 
 ---
 

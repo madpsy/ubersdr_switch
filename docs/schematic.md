@@ -90,7 +90,7 @@ flowchart LR
     end
 
     DEC["74HCT138<br/>3-to-8 decoder"]
-    ESP -- "GPIO12=A0<br/>GPIO13=A1<br/>GPIO14=A2" --> DEC
+    ESP -- "GPIO14=A0<br/>GPIO12=A1<br/>GPIO13=A2" --> DEC
 
     subgraph RLY["Relay bank"]
         RL1["RL1"]
@@ -210,9 +210,9 @@ Radio port; de-energised relays route straight through to the next stage.
 
 | GPIO | Net | To |
 |------|-----|----|
-| GPIO12 | SEL_A0 | 74HCT138 pin A0 |
-| GPIO13 | SEL_A1 | 74HCT138 pin A1 |
-| GPIO14 | SEL_A2 | 74HCT138 pin A2 |
+| GPIO14 | SEL_A0 | 74HCT138 pin A0 |
+| GPIO12 | SEL_A1 | 74HCT138 pin A1 |
+| GPIO13 | SEL_A2 | 74HCT138 pin A2 |
 | GPIO0  | BTN_SET | SET button → GND (active low) |
 | GPIO1  | BTN_DOWN | DOWN button → GND (active low) |
 | GPIO2  | BTN_ERASE | ERASE button → GND (active low) |
@@ -226,9 +226,9 @@ Radio port; de-energised relays route straight through to the next stage.
 
 | Pin | Net | Notes |
 |-----|-----|-------|
-| A0 (1) | SEL_A0 | from GPIO12 |
-| A1 (2) | SEL_A1 | from GPIO13 |
-| A2 (3) | SEL_A2 | from GPIO14 |
+| A0 (1) | SEL_A0 | from GPIO14 |
+| A1 (2) | SEL_A1 | from GPIO12 |
+| A2 (3) | SEL_A2 | from GPIO13 |
 | E1̄ (4), E2̄ (5) | GND | active-low enables tied low (enabled) |
 | E3 (6) | +Vcc | active-high enable tied high (enabled) |
 | Y0 (15) | — | code 000 = GROUND (no relay) |
@@ -303,13 +303,13 @@ the diode part numbers, and the relay-driver transistor type/part numbers.
 
 ## Selection logic (recap)
 
-| A2 (G14) | A1 (G13) | A0 (G12) | Decoder | Result |
+| A0 (G14) | A1 (G12) | A2 (G13) | Decoder | Result |
 |:--------:|:--------:|:--------:|:-------:|--------|
 | 0 | 0 | 0 | Y0 | GROUND (all relays open) |
-| 0 | 0 | 1 | Y1 | ANT1 → RADIO |
+| 1 | 0 | 0 | Y1 | ANT1 → RADIO |
 | 0 | 1 | 0 | Y2 | ANT2 → RADIO |
-| 0 | 1 | 1 | Y3 | ANT3 → RADIO |
-| 1 | 0 | 0 | Y4 | ANT4 → RADIO |
+| 1 | 1 | 0 | Y3 | ANT3 → RADIO |
+| 0 | 0 | 1 | Y4 | ANT4 → RADIO |
 | 1 | 0 | 1 | Y5 | ANT5 → RADIO |
 
 (Codes 110/111 would select the unpopulated ANT6/ANT7.)
@@ -335,7 +335,7 @@ topology correction noted below.
 |---------------------|-------------|
 | Title "ANTENNAS webSWITCH control 1 to 5" | ✅ |
 | ESP8266 dev board (USB, on-board buttons, pin labels) | ✅ |
-| **74HCT138** decoder driven by the ESP | ✅ (GPIO12/13/14 → A0/A1/A2) |
+| **74HCT138** decoder driven by the ESP | ✅ (GPIO14/12/13 → A0/A1/A2) |
 | **5 relays** RL1–RL5 | ✅ |
 | **5 flyback diodes** D1–D5 (one per relay) | ✅ |
 | Series base resistors R11–R15 | ✅ |

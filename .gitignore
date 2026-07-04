@@ -1,8 +1,13 @@
 # Regenerable analysis artifacts (rebuild with scripts/analysis/mkelf.py + objdump)
 /build/
 
-# PlatformIO firmware build artifacts
+# PlatformIO firmware build artifacts (compiled output — not committed)
 firmware/.pio/
+
+# Prebuilt binaries ARE committed (firmware/prebuilt/ is tracked).
+# The negation below ensures nothing inside prebuilt/ is accidentally excluded.
+!firmware/prebuilt/
+!firmware/prebuilt/**
 
 # Baked-in WiFi credentials (written by flash.sh) — never commit real secrets.
 firmware/data/wifi.json

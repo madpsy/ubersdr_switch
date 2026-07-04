@@ -343,19 +343,22 @@ buttons).
 3-bit code. Eight **distinct** codes were found, forming a clean 0–7 sequence:
 
 ```
-G14 G12 G13   pos (A2 A1 A0)
+G14 G12 G13   pos (A0 A1 A2)
  0   0   0     0  (000)  GROUND
- 0   0   1     1  (001)  ANT 1
+ 1   0   0     1  (001)  ANT 1
  0   1   0     2  (010)  ANT 2
- 0   1   1     3  (011)  ANT 3
- 1   0   0     4  (100)  ANT 4
+ 1   1   0     3  (011)  ANT 3
+ 0   0   1     4  (100)  ANT 4
  1   0   1     5  (101)  ANT 5
- 1   1   0     6  (110)  ANT 6
+ 0   1   1     6  (110)  ANT 6
  1   1   1     7  (111)  ANT 7
 ```
 
-So **A2=GPIO14, A1=GPIO13, A0=GPIO12**, and the firmware simply writes the antenna
-index as binary. Full table in [`74hct138-truth-table.md`](74hct138-truth-table.md).
+So **A0=GPIO14, A1=GPIO12, A2=GPIO13**, and the firmware simply writes the antenna
+index as binary across those lines. The disassembly write order (GPIO14 → GPIO12 →
+GPIO13) was initially interpreted as A2/A0/A1, but physical relay testing confirmed
+the actual PCB traces connect them as A0/A1/A2 respectively.
+Full table in [`74hct138-truth-table.md`](74hct138-truth-table.md).
 
 ## 16. Step 14 — Identifying each button's role
 

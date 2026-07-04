@@ -81,6 +81,14 @@ public:
         return isoOf(time(nullptr));
     }
 
+    // Current local time as ISO 8601 string with UTC offset suffix,
+    // e.g. "2024-07-03T16:04:05+01:00" for offsetMinutes=+60.
+    // Returns "" if not yet synced.
+    String localIsoNow(int16_t offsetMinutes) const {
+        if (!_synced) return String();
+        return localIsoOf(time(nullptr), offsetMinutes);
+    }
+
     // Format any Unix timestamp as ISO 8601 UTC ("2024-07-03T15:04:05Z").
     static String isoOf(time_t t) {
         if (t == 0) return String();
@@ -110,6 +118,53 @@ public:
         buf[18] = '0' + tm->tm_sec % 10;
         buf[19] = 'Z';
         buf[20] = '\0';
+        return String(buf);
+    }
+
+    // Format any Unix timestamp as ISO 8601 with a fixed UTC offset,
+    // e.g. "2024-07-03T16:04:05+01:00". offsetMinutes is signed (east = positive).
+    static String localIsoOf(time_t t, int16_t offsetMinutes) {
+        if (t == 0) return String();
+        // Shift the timestamp by the offset before breaking into components.
+        t += (time_t)offsetMinutes * 60;
+        struct tm *tm = gmtime(&t);
+        if (!tm) return String();
+        // "2024-07-03T16:04:05+01:00" = 25 chars + NUL
+        char buf[26];
+        int y = tm->tm_year + 1900;
+        buf[ 0] = '0' + (y / 1000) % 10;
+        buf[ 1] = '0' + (y /  100) % 10;
+        buf[ 2] = '0' + (y /   10) % 10;
+        buf[ 3] = '0' + (y       ) % 10;
+        buf[ 4] = '-';
+        buf[ 5] = '0' + (tm->tm_mon + 1) / 10;
+        buf[ 6] = '0' + (tm->tm_mon + 1) % 10;
+        buf[ 7] = '-';
+        buf[ 8] = '0' + tm->tm_mday / 10;
+        buf[ 9] = '0' + tm->tm_mday % 10;
+        buf[10] = 'T';
+        buf[11] = '0' + tm->tm_hour / 10;
+        buf[12] = '0' + tm->tm_hour % 10;
+        buf[13] = ':';
+        buf[14] = '0' + tm->tm_min / 10;
+        buf[15] = '0' + tm->tm_min % 10;
+        buf[16] = ':';
+        buf[17] = '0' + tm->tm_sec / 10;
+        buf[18] = '0' + tm->tm_sec % 10;
+        // Offset suffix: +HH:MM or -HH:MM or Z for UTC.
+        if (offsetMinutes == 0) {
+            buf[19] = 'Z';
+            buf[20] = '\0';
+        } else {
+            int absMin = offsetMinutes < 0 ? -offsetMinutes : offsetMinutes;
+            buf[19] = (offsetMinutes < 0) ? '-' : '+';
+            buf[20] = '0' + (absMin / 60) / 10;
+            buf[21] = '0' + (absMin / 60) % 10;
+            buf[22] = ':';
+            buf[23] = '0' + (absMin % 60) / 10;
+            buf[24] = '0' + (absMin % 60) % 10;
+            buf[25] = '\0';
+        }
         return String(buf);
     }
 

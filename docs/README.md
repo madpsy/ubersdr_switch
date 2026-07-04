@@ -24,9 +24,9 @@ Reverse-engineering documentation for the ANTENI.NET Ltd. "ANTENNAS webSWITCH co
 
 | GPIO | Function |
 |------|----------|
-| GPIO12 | 74HCT138 **A0** (LSB) |
-| GPIO13 | 74HCT138 **A1** |
-| GPIO14 | 74HCT138 **A2** (MSB) |
+| GPIO14 | 74HCT138 **A0** (LSB) |
+| GPIO12 | 74HCT138 **A1** |
+| GPIO13 | 74HCT138 **A2** (MSB) |
 | GPIO0  | **SET** button (max antenna count) |
 | GPIO1  | **DOWN** button |
 | GPIO2  | **ERASE** button (hold) |

@@ -1,8 +1,14 @@
 # 74HCT138 Decoder Truth Table
 
-The three ESP8266 outputs **GPIO14 (A2) / GPIO13 (A1) / GPIO12 (A0)** feed the
+The three ESP8266 outputs **GPIO14 (A0) / GPIO12 (A1) / GPIO13 (A2)** feed the
 74HCT138 3-to-8 decoder select inputs. The firmware writes the antenna position
 index (0–7) as a plain binary number across these three lines.
+
+> **Note:** the disassembly write order is GPIO14 → GPIO12 → GPIO13, which was
+> initially interpreted as A2/A0/A1. Physical relay testing showed the actual PCB
+> traces connect them as GPIO14→A0, GPIO12→A1, GPIO13→A2. The raw GPIO values in
+> the table below are unchanged (they come directly from the disassembly); only the
+> column labels and the bit-weight interpretation are corrected here.
 
 This table was recovered by grouping every consecutive
 `digitalWrite(14)`, `digitalWrite(12)`, `digitalWrite(13)` triple in the
@@ -10,15 +16,15 @@ disassembly and reading the values — see
 [`scripts/analysis/decode_table.py`](../scripts/analysis/decode_table.py). Eight unique codes were
 found (a full monotonic 0–7 sequence).
 
-| Position | GPIO14 (A2) | GPIO13 (A1) | GPIO12 (A0) | Binary | 74HCT138 output | Meaning |
+| Position | GPIO14 (A0) | GPIO12 (A1) | GPIO13 (A2) | Binary | 74HCT138 output | Meaning |
 |:--------:|:-----------:|:-----------:|:-----------:|:------:|:---------------:|---------|
 | 0 | 0 | 0 | 0 | 000 | Y0 | **GROUND** |
-| 1 | 0 | 0 | 1 | 001 | Y1 | ANT 1 |
+| 1 | 1 | 0 | 0 | 001 | Y1 | ANT 1 |
 | 2 | 0 | 1 | 0 | 010 | Y2 | ANT 2 |
-| 3 | 0 | 1 | 1 | 011 | Y3 | ANT 3 |
-| 4 | 1 | 0 | 0 | 100 | Y4 | ANT 4 |
+| 3 | 1 | 1 | 0 | 011 | Y3 | ANT 3 |
+| 4 | 0 | 0 | 1 | 100 | Y4 | ANT 4 |
 | 5 | 1 | 0 | 1 | 101 | Y5 | ANT 5 |
-| 6 | 1 | 1 | 0 | 110 | Y6 | ANT 6 (unpopulated on 1-to-5 board) |
+| 6 | 0 | 1 | 1 | 110 | Y6 | ANT 6 (unpopulated on 1-to-5 board) |
 | 7 | 1 | 1 | 1 | 111 | Y7 | ANT 7 (unpopulated on 1-to-5 board) |
 
 ## Notes
@@ -33,7 +39,7 @@ found (a full monotonic 0–7 sequence).
 ## Raw recovered blocks
 
 ```
-addr         G14 G12 G13    -> position (A2 A1 A0)
+addr         G14 G12 G13    -> position (A0 A1 A2)
 0x40204004    1   0   0     4   (100)
 0x40204090    0   1   0     2   (010)
 0x4020411c    1   1   0     6   (110)
@@ -49,9 +55,10 @@ addr         G14 G12 G13    -> position (A2 A1 A0)
 
 ```c
 // pos: 0 = GROUND, 1..5 = ANT1..ANT5
+// Actual PCB wiring: GPIO14=A0(LSB), GPIO12=A1, GPIO13=A2(MSB)
 void selectAntenna(uint8_t pos) {
-    digitalWrite(12, (pos >> 0) & 1);   // A0
-    digitalWrite(13, (pos >> 1) & 1);   // A1
-    digitalWrite(14, (pos >> 2) & 1);   // A2
+    digitalWrite(14, (pos >> 0) & 1);   // A0 (LSB)
+    digitalWrite(12, (pos >> 1) & 1);   // A1
+    digitalWrite(13, (pos >> 2) & 1);   // A2 (MSB)
 }
 ```

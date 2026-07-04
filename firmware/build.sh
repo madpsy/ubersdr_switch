@@ -13,6 +13,7 @@
 #   ./build.sh upload  [PORT]  # build + flash firmware over USB
 #   ./build.sh uploadfs [PORT] # build + flash the web assets to LittleFS
 #   ./build.sh all     [PORT]  # build + flash BOTH firmware and filesystem
+#   ./build.sh prebuilt        # build both + copy to prebuilt/ (for committing)
 #   ./build.sh monitor [PORT]  # open the serial monitor (conflicts with UP/DOWN btns)
 #   ./build.sh clean           # remove build artifacts
 #
@@ -83,12 +84,23 @@ case "$ACTION" in
         echo "    NOTE: GPIO1/GPIO3 are the DOWN/UP buttons; serial conflicts with them."
         "$PIO" device monitor --port "$PORT"
         ;;
+    prebuilt)
+        echo "==> Building firmware + filesystem and copying to prebuilt/ ..."
+        "$PIO" run
+        "$PIO" run -t buildfs
+        mkdir -p prebuilt
+        cp .pio/build/esp12e/firmware.bin  prebuilt/firmware.bin
+        cp .pio/build/esp12e/littlefs.bin  prebuilt/littlefs.bin
+        echo "==> Prebuilt binaries updated:"
+        echo "      prebuilt/firmware.bin  ($(wc -c < prebuilt/firmware.bin) bytes)"
+        echo "      prebuilt/littlefs.bin  ($(wc -c < prebuilt/littlefs.bin) bytes)"
+        ;;
     clean)
         echo "==> Cleaning build artifacts..."
         "$PIO" run -t clean
         ;;
     *)
-        echo "usage: $0 {build|fs|upload|uploadfs|all|monitor|clean} [PORT]" >&2
+        echo "usage: $0 {build|fs|upload|uploadfs|all|prebuilt|monitor|clean} [PORT]" >&2
         exit 2
         ;;
 esac

@@ -3,8 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>UberSDR Antenna Switch</title>
-<link rel="icon" href="data:,">
+<title>Antenna Switch</title>
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#38bdf8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AntSwitch">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <style>
   :root {
     --bg:      #0b0f14;
@@ -34,6 +41,7 @@
 
   header {
     display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 10px;
     padding: 22px 4px 14px;
   }
   .brand { display: flex; align-items: baseline; gap: 8px; }
@@ -79,7 +87,7 @@
   .ant {
     position: relative;
     border: 1px solid var(--line); background: var(--card2);
-    border-radius: 14px; padding: 20px 10px; text-align: center;
+    border-radius: 14px; padding: 14px 8px; text-align: center;
     font-size: 17px; font-weight: 700; color: var(--txt);
     cursor: pointer; transition: .12s; user-select: none;
     min-height: 68px;                       /* comfortable touch target */
@@ -99,14 +107,32 @@
     color: #fff; box-shadow: 0 0 0 2px rgba(56,189,248,.35), 0 8px 20px rgba(2,132,199,.4);
   }
   .ant.ground { grid-column: 1 / -1; }
-  /* Edit affordance: small glyph, but a large invisible tap zone for fingers. */
+  /* Edit affordance (pencil, top-right): hidden by default; only shown on hover. */
   .ant .edit {
-    position: absolute; top: 0; right: 0; width: 44px; height: 44px;
-    display: grid; place-items: center; font-size: 15px; font-weight: 400;
-    color: var(--muted); opacity: .6; transition: .12s; line-height: 1;
+    position: absolute; top: 0; right: 0; width: 32px; height: 32px;
+    display: grid; place-items: center; font-size: 13px; font-weight: 400;
+    color: var(--muted); opacity: 0; pointer-events: none;
+    transition: opacity .15s; line-height: 1;
   }
-  @media (hover: hover) { .ant .edit:hover { opacity: 1; color: var(--accent); } }
-  .ant.active .edit { color: rgba(255,255,255,.85); }
+  @media (hover: hover) {
+    .ant:hover .edit { opacity: .55; pointer-events: auto; }
+    .ant .edit:hover { opacity: 1; color: var(--accent); }
+    .ant.active:hover .edit { color: rgba(255,255,255,.85); }
+  }
+  /* Default-port star (top-left): always visible when this port is the default;
+     shown on hover for all other ports. */
+  .ant .star {
+    position: absolute; top: 0; left: 0; width: 28px; height: 28px;
+    display: grid; place-items: center; font-size: 13px;
+    color: var(--muted); opacity: 0; pointer-events: none;
+    transition: opacity .15s; line-height: 1; cursor: pointer;
+  }
+  .ant.is-default .star { opacity: 1; color: #f59e0b; pointer-events: auto; }
+  @media (hover: hover) {
+    .ant:hover .star { opacity: .55; pointer-events: auto; }
+    .ant .star:hover { opacity: 1; color: #f59e0b; }
+    .ant.active.is-default .star { color: #fde68a; }
+  }
 
   /* Step / controls */
   .row { display: flex; gap: 12px; }
@@ -179,7 +205,30 @@
     -webkit-appearance: none;
   }
   .sheet input[type=number]:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(56,189,248,.25); }
+  .sheet select {
+    width: 100%; box-sizing: border-box; margin-top: 4px;
+    background: #0a0e13; border: 1px solid var(--line); border-radius: 10px;
+    color: var(--txt); font-size: 15px; padding: 12px 14px; outline: none;
+    -webkit-appearance: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238695a6' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center;
+    padding-right: 36px;
+  }
+  .sheet select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(56,189,248,.25); }
   .sheet label { display:block; font-size:13px; color:var(--muted); margin-top:14px; margin-bottom:2px; }
+  /* Day-of-week picker buttons */
+  .daybtn {
+    padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--card2); color: var(--muted); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: .12s; user-select: none;
+  }
+  .daybtn.on { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+  .daybtn:hover { border-color: var(--accent); }
+  /* Schedule table delete button */
+  .sched-del { background: none; border: none; color: var(--err); cursor: pointer; font-size: 16px; padding: 2px 6px; }
+  .sched-del:hover { color: #ff6b6b; }
+  .sched-edit { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 6px; }
+  .sched-edit:hover { color: var(--accent); }
   .sheet label:first-of-type { margin-top:0; }
   .toggle-row { display:flex; align-items:center; justify-content:space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .toggle-row:last-child { border-bottom: none; }
@@ -200,6 +249,18 @@
   .tog input:checked + .slider:before { transform: translateX(18px); }
   .mqtt-status { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); margin-bottom:14px; }
   .mqtt-status .dot { margin:0; }
+
+  /* Locked overlay */
+  #lockedOverlay {
+    position: fixed; inset: 0; z-index: 150; display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(4,8,13,.88); backdrop-filter: blur(4px); text-align: center;
+    padding: 24px; cursor: pointer;
+  }
+  #lockedOverlay.show { display: flex; }
+  #lockedOverlay .lock-icon { font-size: 56px; margin-bottom: 16px; }
+  #lockedOverlay .lock-msg  { font-size: 26px; font-weight: 800; color: var(--err); letter-spacing: .3px; }
+  #lockedOverlay .lock-hint { color: var(--muted); font-size: 13px; margin-top: 10px; }
 
   /* Reboot overlay */
   #reboot {
@@ -233,14 +294,22 @@
     .sheet { padding: 18px; }
     pre { font-size: 11.5px; }
     table.ep { font-size: 11.5px; }
+    /* On narrow screens the button row wraps below the brand and spans full width */
+    header { padding-bottom: 10px; }
+    header > div:last-child {
+      width: 100%;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+    .iconbtn { width: 36px; height: 36px; font-size: 16px; }
   }
   /* very narrow: single column so names never truncate awkwardly */
   @media (max-width: 340px) {
     .grid { grid-template-columns: 1fr; }
   }
-  /* larger phones / small tablets get a little more room */
+  /* larger phones / small tablets: 5 columns */
   @media (min-width: 560px) {
-    .grid { grid-template-columns: repeat(4, 1fr); }
+    .grid { grid-template-columns: repeat(5, 1fr); }
     .ant.ground { grid-column: 1 / -1; }
   }
 </style>
@@ -250,14 +319,16 @@
 
   <header>
     <div class="brand">
-      <h1 id="brandName">Uber<span class="sdr">SDR</span></h1>
+      <h1 id="brandName">UberSDR</h1>
       <span class="sub">antenna switch</span>
     </div>
     <div style="display:flex; gap:10px;">
       <button class="iconbtn" id="infoBtn" title="Device info">i</button>
       <button class="iconbtn" id="evtBtn" title="Event log">&#9776;</button>
+      <button class="iconbtn" id="schedBtn" title="Schedule">&#128197;</button>
       <button class="iconbtn" id="helpBtn" title="API reference">?</button>
       <button class="iconbtn" id="cfgBtn" title="Settings">&#9881;</button>
+      <button class="iconbtn" id="lockBtn" title="Lock / unlock antenna selection">&#128274;</button>
       <button class="iconbtn danger" id="restartBtn" title="Restart device">&#8635;</button>
     </div>
   </header>
@@ -267,15 +338,17 @@
     <div class="now"><span class="dot" id="liveDot"></span>Current antenna</div>
     <div class="label" id="curLabel">—</div>
     <div class="meta">
-      max <b id="curMax">–</b> &nbsp;•&nbsp;
       <a id="curUrl" href="#">—</a> &nbsp;•&nbsp;
       <span id="curHost">—</span>
-      <span id="mqttBadge" style="display:none"> &nbsp;•&nbsp;
-        <span id="mqttDot" class="dot"></span><span id="mqttLabel" style="font-size:12px">MQTT</span>
-      </span>
+    </div>
+    <div id="mqttBadge" style="display:none;font-size:12px;color:var(--muted);margin-top:3px">
+      <span id="mqttDot" class="dot"></span><span id="mqttLabel">MQTT</span>
+    </div>
+    <div id="schedBadge" style="display:none;font-size:12px;color:var(--muted);margin-top:3px">
+      <span class="dot" id="schedBadgeDot" style="background:var(--accent)"></span><span id="schedBadgeLabel">&#128197; Sched</span>
     </div>
     <div id="clockRow" style="display:none;font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:0.04em">
-      <span id="clockUtc"></span> UTC
+      <span id="clockUtc"></span>
     </div>
   </div>
 
@@ -286,6 +359,8 @@
     <div class="row" style="margin-top:14px">
       <button class="btn" id="downBtn">▼ Down</button>
       <button class="btn" id="upBtn">▲ Up</button>
+      <button class="btn" id="lockAntBtn" title="Lock / unlock antenna selection"
+              style="flex:0 0 auto; padding:14px 16px; font-size:18px;">&#128274;</button>
     </div>
   </div>
 
@@ -309,6 +384,13 @@
 
 <div id="toast"></div>
 
+<!-- Locked overlay: shown briefly when user tries to change antenna while locked -->
+<div id="lockedOverlay">
+  <div class="lock-icon">&#128274;</div>
+  <div class="lock-msg">Antenna Locked</div>
+  <div class="lock-hint">Hold the <strong style="color:#22c55e">UP ▲ (green button)</strong> for 3 seconds to unlock</div>
+</div>
+
 <!-- Full-screen reboot overlay with countdown -->
 <div id="reboot">
   <div class="spinner"></div>
@@ -321,7 +403,22 @@
 <div class="modal" id="modal">
   <div class="sheet">
     <button class="iconbtn close" id="closeBtn">✕</button>
-    <h3>REST API reference</h3>
+    <h3>Help</h3>
+
+    <h4>Button gestures</h4>
+    <table class="ep">
+      <tr><th>Button</th><th>Short press</th><th>Hold 3 s</th></tr>
+      <tr><td><strong style="color:#22c55e">▲ UP</strong> <small style="color:var(--muted)">(green)</small></td><td>Next antenna</td><td>Toggle lock / unlock</td></tr>
+      <tr><td><strong>▼ DOWN</strong> <small style="color:var(--muted)">(black)</small></td><td>Previous antenna</td><td>Show IP address (3 s)</td></tr>
+      <tr><td><strong>SET</strong></td><td>Bump max antennas (wraps 0–7)</td><td>—</td></tr>
+      <tr><td><strong>ERASE</strong></td><td>—</td><td>Wipe WiFi config &amp; reboot</td></tr>
+    </table>
+    <p class="lead" style="margin-top:8px">
+      <strong>Lock:</strong> when locked, antenna changes via buttons, API and MQTT are blocked.
+      The OLED shows a padlock icon. Hold the <strong style="color:#22c55e">▲ UP (green)</strong> button for 3 s to toggle lock/unlock.
+    </p>
+
+    <h4>REST API</h4>
     <p class="lead">All endpoints return JSON. Mutating calls accept any method (canonical: POST).
     <code>$H</code> = this device (e.g. its IP or <code>ESP-XXXXXX.local</code>).</p>
 
@@ -341,9 +438,20 @@
       <tr><td>GET</td><td><code>/api/info</code></td><td>device / network / firmware info</td></tr>
       <tr><td>GET</td><td><code>/api/mqtt</code></td><td>read MQTT config + connection status</td></tr>
       <tr><td>POST</td><td><code>/api/mqtt</code></td><td>update MQTT config (partial JSON OK)</td></tr>
-      <tr><td>GET</td><td><code>/api/ntp</code></td><td>read NTP config + sync status</td></tr>
-      <tr><td>POST</td><td><code>/api/ntp</code></td><td>update NTP config (host, port)</td></tr>
+      <tr><td>GET</td><td><code>/api/ntp</code></td><td>read NTP config + sync status + timezone</td></tr>
+      <tr><td>POST</td><td><code>/api/ntp</code></td><td>update NTP config (host, port, tz_offset)</td></tr>
       <tr><td>GET</td><td><code>/api/events</code></td><td>last 25 antenna-change events (JSON array)</td></tr>
+      <tr><td>POST</td><td><code>/api/display</code></td><td>show custom OLED message <code>{"text":"…","duration":N,"align":"center"}</code></td></tr>
+      <tr><td>GET/POST</td><td><code>/api/display/blank</code></td><td>get / set screen-saver config <code>{"enabled":bool,"timeout":N}</code></td></tr>
+      <tr><td>GET/POST</td><td><code>/api/display/mode</code></td><td>get / set OLED mode <code>{"mode":"port"}</code> or <code>{"mode":"clock"}</code></td></tr>
+      <tr><td>GET/POST</td><td><code>/api/default-port</code></td><td>get / set startup default port <code>{"default_port":N}</code> (0=GROUND, 1–7=ANT)</td></tr>
+      <tr><td>GET/POST</td><td><code>/api/startup-port</code></td><td>get / set startup port behaviour <code>{"mode":"default"}</code> or <code>{"mode":"last"}</code></td></tr>
+      <tr><td>GET</td><td><code>/api/lock</code></td><td>read lock state <code>{"locked":bool}</code></td></tr>
+      <tr><td>POST</td><td><code>/api/lock</code></td><td>set lock state <code>{"locked":true|false}</code></td></tr>
+      <tr><td>POST</td><td><code>/api/lock/toggle</code></td><td>toggle lock state</td></tr>
+      <tr><td>GET</td><td><code>/api/schedule</code></td><td>read all schedule entries + global flags</td></tr>
+      <tr><td>POST</td><td><code>/api/schedule</code></td><td>set entry <code>{id,enabled,days,hour,minute,position}</code> or global flags <code>{scheduler_enabled:bool}</code> / <code>{respect_lock:bool}</code></td></tr>
+      <tr><td>DELETE</td><td><code>/api/schedule?id=N</code></td><td>clear/disable slot N (0–9)</td></tr>
       <tr><td>POST</td><td><code>/api/restart</code></td><td>reboot the device</td></tr>
     </table>
 
@@ -368,6 +476,39 @@
 <span class="c">curl -X POST "http://<span class="curlH">this-device</span>/api/name?position=3&amp;name=80m%20Vertical"</span>
 <span class="c">curl -X DELETE "http://<span class="curlH">this-device</span>/api/name?position=3"</span>
 
+<span class="m"># OLED display mode (port=antenna prominent, clock=time prominent)</span>
+<span class="c">curl "http://<span class="curlH">this-device</span>/api/display/mode"</span>
+<span class="c">curl -X POST -H "Content-Type: application/json" \
+     -d '{"mode":"clock"}' "http://<span class="curlH">this-device</span>/api/display/mode"</span>
+
+<span class="m"># schedule: read all entries</span>
+<span class="c">curl "http://<span class="curlH">this-device</span>/api/schedule"</span>
+
+<span class="m"># schedule: add/update slot 0 — ANT3 at 08:00 Mon–Fri (days bitmask: Mon=2,Tue=4,Wed=8,Thu=16,Fri=32 → 62)</span>
+<span class="c">curl -X POST -H "Content-Type: application/json" \
+     -d '{"id":0,"enabled":true,"days":62,"hour":8,"minute":0,"position":3}' \
+     "http://<span class="curlH">this-device</span>/api/schedule"</span>
+
+<span class="m"># schedule: every day at 22:00 switch to GROUND (position 0)</span>
+<span class="c">curl -X POST -H "Content-Type: application/json" \
+     -d '{"id":1,"enabled":true,"days":127,"hour":22,"minute":0,"position":0}' \
+     "http://<span class="curlH">this-device</span>/api/schedule"</span>
+
+<span class="m"># schedule: disable slot 0</span>
+<span class="c">curl -X POST -H "Content-Type: application/json" \
+     -d '{"id":0,"enabled":false}' "http://<span class="curlH">this-device</span>/api/schedule"</span>
+
+<span class="m"># schedule: delete slot 0</span>
+<span class="c">curl -X DELETE "http://<span class="curlH">this-device</span>/api/schedule?id=0"</span>
+
+<span class="m"># schedule: master on/off (pauses all entries without deleting them)</span>
+<span class="c">curl -X POST -H "Content-Type: application/json" \
+     -d '{"scheduler_enabled":false}' "http://<span class="curlH">this-device</span>/api/schedule"</span>
+
+<span class="m"># schedule: set respect-lock flag</span>
+<span class="c">curl -X POST -H "Content-Type: application/json" \
+     -d '{"respect_lock":true}' "http://<span class="curlH">this-device</span>/api/schedule"</span>
+
 <span class="m"># device info + reboot</span>
 <span class="c">curl "http://<span class="curlH">this-device</span>/api/info"</span>
 <span class="c">curl -X POST "http://<span class="curlH">this-device</span>/api/restart"</span>
@@ -382,13 +523,20 @@
 <span class="c">curl -X POST -H "Content-Type: application/json" \
      -d '{"device_name":"ShackSDR"}' "http://<span class="curlH">this-device</span>/api/mqtt"</span>
 
-<span class="m"># NTP: check sync status / set server</span>
+<span class="m"># NTP: check sync status / set server / set timezone (minutes east of UTC)</span>
 <span class="c">curl "http://<span class="curlH">this-device</span>/api/ntp"</span>
 <span class="c">curl -X POST -H "Content-Type: application/json" \
      -d '{"host":"pool.ntp.org","port":123}' "http://<span class="curlH">this-device</span>/api/ntp"</span>
+<span class="c">curl -X POST -H "Content-Type: application/json" \
+     -d '{"tz_offset":60}' "http://<span class="curlH">this-device</span>/api/ntp"</span>
 
 <span class="m"># event log (last 25 changes, newest first)</span>
 <span class="c">curl "http://<span class="curlH">this-device</span>/api/events"</span>
+
+<span class="m"># custom OLED message — multi-line with \n, optional duration &amp; align</span>
+<span class="c">curl -X POST -H "Content-Type: application/json" \
+     -d '{"text":"ANT 3\n80m Vert","duration":4,"align":"center"}' \
+     "http://<span class="curlH">this-device</span>/api/display"</span>
 
 <span class="m"># JSON body form</span>
 <span class="c">curl -X POST -H "Content-Type: application/json" \
@@ -401,6 +549,8 @@
       <tr><td><code>&lt;prefix&gt;/set</code></td><td><code>0</code>–<code>7</code> | <code>up</code> | <code>down</code> | <code>ground</code></td><td>Select antenna / step</td></tr>
       <tr><td><code>&lt;prefix&gt;/max/set</code></td><td><code>0</code>–<code>7</code></td><td>Set max antennas</td></tr>
       <tr><td><code>&lt;prefix&gt;/name/set</code></td><td><code>{"position":N,"name":"…"}</code></td><td>Set/clear a port name</td></tr>
+      <tr><td><code>&lt;prefix&gt;/display</code></td><td><code>{"text":"…","duration":N,"align":"…"}</code></td><td>Show custom OLED message</td></tr>
+      <tr><td><code>&lt;prefix&gt;/lock</code></td><td><code>"lock"</code> / <code>"unlock"</code> / <code>"toggle"</code></td><td>Lock or unlock antenna selection</td></tr>
       <tr><td><code>&lt;prefix&gt;/restart</code></td><td>any</td><td>Reboot the device</td></tr>
     </table>
     <pre id="mqttCmdPre"><span class="m"># mosquitto_pub examples</span>
@@ -409,7 +559,9 @@
 <span class="c">mosquitto_pub -h <span id="mqttCmdHost3">…</span> -t "<span id="mqttCmdPfx3">ubersdr/ESP-XXXXXX</span>/set" -m "ground"</span>
 <span class="c">mosquitto_pub -h <span id="mqttCmdHost4">…</span> -t "<span id="mqttCmdPfx4">ubersdr/ESP-XXXXXX</span>/max/set" -m "5"</span>
 <span class="c">mosquitto_pub -h <span id="mqttCmdHost5">…</span> -t "<span id="mqttCmdPfx5">ubersdr/ESP-XXXXXX</span>/name/set" \
-  -m '{"position":3,"name":"80m Vertical"}'</span></pre>
+  -m '{"position":3,"name":"80m Vertical"}'</span>
+<span class="c">mosquitto_pub -h <span id="mqttCmdHost6">…</span> -t "<span id="mqttCmdPfx6">ubersdr/ESP-XXXXXX</span>/display" \
+  -m '{"text":"ANT 3\n80m Vert","duration":4,"align":"center"}'</span></pre>
 
     <h4>JavaScript</h4>
     <pre><span class="c">await fetch("/api/antenna?position=2", {method:"POST"})
@@ -456,7 +608,50 @@
     <button class="iconbtn close" id="cfgClose">✕</button>
     <h3>Settings</h3>
 
-    <h4>MQTT</h4>
+    <h4>Timezone</h4>
+    <label>Display timezone <small style="display:inline;color:var(--muted)">(used for all timestamps in the UI)</small></label>
+    <select id="tzOffset">
+      <option value="-720">UTC−12:00 — Baker Island</option>
+      <option value="-660">UTC−11:00 — Samoa</option>
+      <option value="-600">UTC−10:00 — Hawaii (HST)</option>
+      <option value="-570">UTC−09:30 — Marquesas</option>
+      <option value="-540">UTC−09:00 — Alaska (AKST)</option>
+      <option value="-480">UTC−08:00 — Pacific (PST) / Los Angeles</option>
+      <option value="-420">UTC−07:00 — Mountain (MST) / Denver</option>
+      <option value="-360">UTC−06:00 — Central (CST) / Chicago</option>
+      <option value="-300">UTC−05:00 — Eastern (EST) / New York</option>
+      <option value="-240">UTC−04:00 — Atlantic / Caracas</option>
+      <option value="-210">UTC−03:30 — Newfoundland (NST)</option>
+      <option value="-180">UTC−03:00 — Buenos Aires / Brasília</option>
+      <option value="-120">UTC−02:00 — South Georgia</option>
+      <option value="-60">UTC−01:00 — Azores</option>
+      <option value="0">UTC±00:00 — London (GMT) / Reykjavik</option>
+      <option value="60">UTC+01:00 — London (BST) / Paris / Berlin / Madrid</option>
+      <option value="120">UTC+02:00 — Athens / Cairo / Johannesburg</option>
+      <option value="180">UTC+03:00 — Moscow / Nairobi / Riyadh</option>
+      <option value="210">UTC+03:30 — Tehran</option>
+      <option value="240">UTC+04:00 — Dubai / Baku</option>
+      <option value="270">UTC+04:30 — Kabul</option>
+      <option value="300">UTC+05:00 — Karachi / Tashkent</option>
+      <option value="330">UTC+05:30 — India (IST) / Colombo</option>
+      <option value="345">UTC+05:45 — Nepal</option>
+      <option value="360">UTC+06:00 — Dhaka / Almaty</option>
+      <option value="390">UTC+06:30 — Yangon (Myanmar)</option>
+      <option value="420">UTC+07:00 — Bangkok / Jakarta / Hanoi</option>
+      <option value="480">UTC+08:00 — Beijing / Singapore / Perth</option>
+      <option value="525">UTC+08:45 — Eucla (Australia)</option>
+      <option value="540">UTC+09:00 — Tokyo / Seoul / Yakutsk</option>
+      <option value="570">UTC+09:30 — Adelaide / Darwin (ACST)</option>
+      <option value="600">UTC+10:00 — Sydney / Brisbane (AEST)</option>
+      <option value="630">UTC+10:30 — Lord Howe Island</option>
+      <option value="660">UTC+11:00 — Solomon Islands / Vladivostok</option>
+      <option value="720">UTC+12:00 — Auckland / Fiji</option>
+      <option value="765">UTC+12:45 — Chatham Islands</option>
+      <option value="780">UTC+13:00 — Samoa (WST) / Tonga</option>
+      <option value="840">UTC+14:00 — Line Islands (Kiribati)</option>
+    </select>
+
+    <h4 style="margin-top:22px">MQTT</h4>
     <div class="mqtt-status">
       <span class="dot" id="cfgMqttDot"></span>
       <span id="cfgMqttStatus">loading…</span>
@@ -494,6 +689,16 @@
     <label>Switch name <small style="display:inline;color:var(--muted)">(shown on OLED splash &amp; web header)</small></label>
     <input type="text" id="deviceName" maxlength="24" placeholder="UberSDR" autocomplete="off">
 
+    <label style="margin-top:14px">Startup port behaviour</label>
+    <select id="startupPortMode">
+      <option value="default">Use default port (⭐ star)</option>
+      <option value="last">Restore last used port</option>
+    </select>
+    <p style="font-size:11px;color:var(--muted);margin:4px 0 0">
+      "Last used" is stored to the filesystem (LittleFS) with a 2-second delay after each change.
+      It is reset to GROUND if the filesystem is reflashed.
+    </p>
+
     <h4 style="margin-top:22px">NTP (time sync)</h4>
     <div id="ntpStatus" style="font-size:12px;color:var(--muted);margin-bottom:8px">loading…</div>
     <label>NTP server</label>
@@ -501,9 +706,57 @@
     <label>Port <small style="display:inline;color:var(--muted)">(default 123)</small></label>
     <input type="number" id="ntpPort" min="1" max="65535" placeholder="123">
 
+    <h4 style="margin-top:22px">Display</h4>
+    <label>Prominent value</label>
+    <select id="displayMode">
+      <option value="port">Port / antenna (default)</option>
+      <option value="clock">Clock / time</option>
+    </select>
+    <p style="font-size:11px;color:var(--muted);margin:4px 0 0">
+      In clock mode the time is shown large; the antenna label is small underneath.
+      When the port changes, the antenna label is shown large for 2 seconds regardless of this setting.
+    </p>
+    <div class="toggle-row" style="margin-top:14px">
+      <div><span>Blank display</span><small>Screen-saver: blank OLED after inactivity (a dot flashes to show it's alive)</small></div>
+      <label class="tog"><input type="checkbox" id="blankEnabled"><span class="slider"></span></label>
+    </div>
+    <label>Blank after <small style="display:inline;color:var(--muted)">(seconds, 1–255)</small></label>
+    <input type="number" id="blankTimeout" min="1" max="255" placeholder="5">
+
+    <h4 style="margin-top:22px;color:var(--err)">Factory reset</h4>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 10px">
+      Erase all stored settings and WiFi credentials. The device will reboot into the
+      WiFi setup portal. This cannot be undone.
+    </p>
+    <button class="btn danger-btn" id="cfgErase" style="width:100%">Erase all settings&hellip;</button>
+
     <div class="row" style="margin-top:18px">
       <button class="btn" id="cfgCancel">Cancel</button>
       <button class="btn accent" id="cfgSave">Save &amp; apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- Factory reset confirmation modal -->
+<div class="modal" id="eraseModal">
+  <div class="sheet" style="max-width:420px">
+    <button class="iconbtn close" id="eraseClose">✕</button>
+    <h3 style="color:var(--err)">⚠ Erase all settings?</h3>
+    <p class="lead">This will permanently erase:</p>
+    <ul style="font-size:13px;color:var(--muted);margin:0 0 14px;padding-left:18px;line-height:1.8">
+      <li>WiFi credentials (device will enter setup portal)</li>
+      <li>All antenna names</li>
+      <li>Max antennas setting</li>
+      <li>MQTT configuration</li>
+      <li>NTP / timezone settings</li>
+      <li>Display mode &amp; blank settings</li>
+      <li>Default port &amp; startup port mode</li>
+      <li>All schedule entries</li>
+    </ul>
+    <p style="font-size:12px;color:var(--err);margin:0 0 16px">This cannot be undone. The device will reboot immediately.</p>
+    <div class="row">
+      <button class="btn" id="eraseCancel">Cancel</button>
+      <button class="btn danger-btn" id="eraseConfirm">Erase everything &amp; reboot</button>
     </div>
   </div>
 </div>
@@ -525,6 +778,73 @@
   </div>
 </div>
 
+<!-- Schedule modal -->
+<div class="modal" id="schedModal">
+  <div class="sheet" style="max-width:560px">
+    <button class="iconbtn close" id="schedClose">✕</button>
+    <h3>Schedule</h3>
+    <p class="lead">Switch to a chosen antenna at a set time. Times use your configured timezone. NTP sync is required for the scheduler to run.</p>
+
+    <div class="toggle-row" style="margin-bottom:6px">
+      <div><span>Enable scheduler</span><small>Master on/off — pauses all scheduled changes without deleting entries</small></div>
+      <label class="tog"><input type="checkbox" id="schedMasterEnabled"><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row" style="margin-bottom:14px">
+      <div><span>Respect lock</span><small>When the switch is locked, scheduled changes are skipped</small></div>
+      <label class="tog"><input type="checkbox" id="schedRespectLock"><span class="slider"></span></label>
+    </div>
+
+    <table class="ep" id="schedTable" style="margin-bottom:14px">
+      <thead><tr><th>#</th><th>On</th><th>Days</th><th>Time</th><th>Antenna</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <button class="btn accent" id="schedAddBtn" style="width:100%">+ Add entry</button>
+  </div>
+</div>
+
+<!-- Schedule entry edit modal -->
+<div class="modal" id="schedEditModal">
+  <div class="sheet" style="max-width:400px">
+    <button class="iconbtn close" id="schedEditClose">✕</button>
+    <h3 id="schedEditTitle">Add schedule entry</h3>
+
+    <label>Antenna / position</label>
+    <select id="schedEditPos">
+      <option value="0">GROUND (position 0)</option>
+    </select>
+
+    <label>Time (local, HH:MM)</label>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <input type="number" id="schedEditHour" min="0" max="23" placeholder="HH" style="flex:1">
+      <span style="align-self:center;font-size:20px;color:var(--muted)">:</span>
+      <input type="number" id="schedEditMin" min="0" max="59" placeholder="MM" style="flex:1">
+    </div>
+
+    <label style="margin-top:14px">Days</label>
+    <div id="schedDayPicker" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+      <button class="daybtn" data-day="0">Sun</button>
+      <button class="daybtn" data-day="1">Mon</button>
+      <button class="daybtn" data-day="2">Tue</button>
+      <button class="daybtn" data-day="3">Wed</button>
+      <button class="daybtn" data-day="4">Thu</button>
+      <button class="daybtn" data-day="5">Fri</button>
+      <button class="daybtn" data-day="6">Sat</button>
+      <button class="daybtn" data-day="all" style="margin-left:6px">Every day</button>
+    </div>
+
+    <div class="toggle-row" style="margin-top:14px">
+      <div><span>Enabled</span></div>
+      <label class="tog"><input type="checkbox" id="schedEditEnabled" checked><span class="slider"></span></label>
+    </div>
+
+    <div class="row" style="margin-top:16px">
+      <button class="btn" id="schedEditCancel">Cancel</button>
+      <button class="btn accent" id="schedEditSave">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Restart confirm modal -->
 <div class="modal" id="restartModal">
   <div class="sheet" style="max-width:400px">
@@ -542,7 +862,37 @@
 <script>
 (function(){
   "use strict";
-  var maxAnt = 5, curPos = 0, names = {};
+  var maxAnt = 5, curPos = 0, names = {}, defaultPort = 0, startupPortMode = "default";
+  var _lastNotifiedPos = -1;   // -1 = not yet initialised (suppress notification on first load)
+  var _notifEnabled = false;
+
+  // Request notification permission once (after the page has loaded and the user
+  // has interacted — the first status poll provides the implicit interaction context).
+  function _requestNotifPermission(){
+    if(!("Notification" in window)) return;
+    if(Notification.permission === "granted"){ _notifEnabled = true; return; }
+    if(Notification.permission === "denied") return;
+    Notification.requestPermission().then(function(p){
+      _notifEnabled = (p === "granted");
+    });
+  }
+
+  function _fireNotification(pos, label){
+    if(!_notifEnabled) return;
+    if(Notification.permission !== "granted") return;
+    var title = label || (pos === 0 ? "GROUND" : "ANT " + pos);
+    var body  = "Antenna switched to " + title;
+    try {
+      var n = new Notification("Antenna Switch", {
+        body: body,
+        icon: "/icon-192.png",
+        tag:  "ant-change",   // replaces any previous notification of the same type
+        silent: false
+      });
+      // Auto-close after 4 seconds.
+      setTimeout(function(){ n.close(); }, 4000);
+    } catch(e) {}
+  }
   var grid = document.getElementById("antGrid");
 
   function toast(msg, kind){
@@ -562,6 +912,21 @@
     });
   }
 
+  // Timezone offset in minutes east of UTC (loaded from /api/ntp, persisted on device).
+  var _tzOffsetMin = 0;
+
+  // Format a UTC offset as "+HH:MM" / "-HH:MM" / "UTC".
+  function fmtTzLabel(min){
+    if(min === 0) return "UTC";
+    var sign = min < 0 ? "-" : "+";
+    var abs  = Math.abs(min);
+    return "UTC" + sign + String(Math.floor(abs/60)).padStart(2,"0") + ":" + String(abs%60).padStart(2,"0");
+  }
+
+  // Apply _tzOffsetMin to a UTC Unix-ms value and return a local Date-like object
+  // (actually a Date shifted so UTC accessors give local values).
+  function localDate(utcMs){ return new Date(utcMs + _tzOffsetMin * 60000); }
+
   // Clock: synced from s.time (ISO8601 UTC), ticks locally every second.
   var _clockBase = 0;   // Unix ms at last sync
   var _clockSyncAt = 0; // performance.now() ms at last sync
@@ -575,24 +940,26 @@
   }
   function clockTick(){
     if(!_clockBase) return;
-    var now = new Date(_clockBase + (Date.now() - _clockSyncAt));
-    var hh = String(now.getUTCHours()).padStart(2,"0");
-    var mm = String(now.getUTCMinutes()).padStart(2,"0");
-    var ss = String(now.getUTCSeconds()).padStart(2,"0");
-    var dd = now.getUTCFullYear() + "-" +
-             String(now.getUTCMonth()+1).padStart(2,"0") + "-" +
-             String(now.getUTCDate()).padStart(2,"0");
-    document.getElementById("clockUtc").textContent = dd + " " + hh + ":" + mm + ":" + ss;
+    var utcMs = _clockBase + (Date.now() - _clockSyncAt);
+    var loc = localDate(utcMs);
+    var hh = String(loc.getUTCHours()).padStart(2,"0");
+    var mm = String(loc.getUTCMinutes()).padStart(2,"0");
+    var ss = String(loc.getUTCSeconds()).padStart(2,"0");
+    var dd = loc.getUTCFullYear() + "-" +
+             String(loc.getUTCMonth()+1).padStart(2,"0") + "-" +
+             String(loc.getUTCDate()).padStart(2,"0");
+    var label = fmtTzLabel(_tzOffsetMin);
+    document.getElementById("clockUtc").textContent = dd + " " + hh + ":" + mm + ":" + ss + " " + label;
   }
 
   function render(s){
+    var prevPos = curPos;
     if(typeof s.position === "number") curPos = s.position;
     if(typeof s.max === "number") maxAnt = s.max;
     if(s.names && typeof s.names === "object") names = s.names;
     if(s.time) clockSync(s.time);
 
     document.getElementById("curLabel").textContent = s.label || (s.ground ? "GROUND" : "ANT: " + s.position);
-    document.getElementById("curMax").textContent = maxAnt;
     document.getElementById("maxVal").textContent = maxAnt;
     document.getElementById("curHost").textContent = s.hostname || "";
     var url = s.url || "";
@@ -601,19 +968,10 @@
     a.href = url || "#";
     document.getElementById("liveDot").classList.add("live");
 
-    // Update header brand with device name
+    // Update page title and header brand with device name (plain white, no accent split).
     if(s.device_name){
-      var bn = document.getElementById("brandName");
-      // Split on last word to apply accent colour to it (e.g. "Uber" + "SDR")
-      var nm = s.device_name;
-      var sp = nm.lastIndexOf(" ");
-      if(sp > 0){
-        bn.innerHTML = esc(nm.slice(0, sp+1)) + "<span class='sdr'>" + esc(nm.slice(sp+1)) + "</span>";
-      } else {
-        // Single word: accent the last 3 chars if long enough, else whole word
-        var cut = nm.length > 4 ? nm.length - 3 : 0;
-        bn.innerHTML = esc(nm.slice(0, cut)) + "<span class='sdr'>" + esc(nm.slice(cut)) + "</span>";
-      }
+      document.title = s.device_name + " — Antenna Switch";
+      document.getElementById("brandName").textContent = s.device_name;
     }
 
     // MQTT status badge in the status card
@@ -633,17 +991,65 @@
       badge.style.display = "none";
     }
 
+    // Scheduler badge: shown when scheduler is enabled (active or paused).
+    var sb    = document.getElementById("schedBadge");
+    var sl    = document.getElementById("schedBadgeLabel");
+    var sbDot = document.getElementById("schedBadgeDot");
+    if(s.scheduler_enabled !== false && s.scheduler_active){
+      // Active: blue dot + next firing time
+      sb.style.display = "";
+      if(sbDot){ sbDot.className = "dot live"; sbDot.style.background = "var(--accent)"; }
+      var next = s.scheduler_next || "";
+      sl.innerHTML = next ? ("&#128197; " + esc(next)) : "&#128197; Sched";
+    } else if(s.scheduler_enabled === false){
+      // Master switch off: show greyed-out "Sched (off)"
+      sb.style.display = "";
+      if(sbDot){ sbDot.className = "dot"; sbDot.style.background = "var(--muted)"; }
+      sl.innerHTML = "&#128197; Sched (off)";
+    } else {
+      sb.style.display = "none";
+    }
+
+    // Lock badge + lock button state
+    var locked = !!s.locked;
+    _locked = locked;
+    // Header lock button
+    var lb = document.getElementById("lockBtn");
+    lb.title = locked ? "Unlock antenna selection" : "Lock antenna selection";
+    lb.style.borderColor = locked ? "var(--warn)" : "";
+    lb.style.color       = locked ? "var(--warn)" : "";
+    // Antenna card lock button
+    var lab = document.getElementById("lockAntBtn");
+    lab.textContent = locked ? "\uD83D\uDD12" : "\uD83D\uDD13";  // locked/unlocked padlock
+    lab.title = locked ? "Unlock (or hold UP button 3s)" : "Lock antenna selection";
+    lab.style.background   = locked ? "linear-gradient(180deg,#dc2626,#991b1b)" : "";
+    lab.style.borderColor  = locked ? "#dc2626" : "";
+    lab.style.color        = locked ? "#fff" : "";
+
     buildGrid();
     highlight();
+
+    // Fire a notification if the position changed externally (not from the user's
+    // own click — those set curPos optimistically so _lastNotifiedPos already matches).
+    if(_lastNotifiedPos < 0){
+      // First render: initialise without notifying.
+      _lastNotifiedPos = curPos;
+      _requestNotifPermission();
+    } else if(curPos !== _lastNotifiedPos){
+      _lastNotifiedPos = curPos;
+      var lbl = s.label || (curPos === 0 ? "GROUND" : (names[String(curPos)] || ("ANT " + curPos)));
+      _fireNotification(curPos, lbl);
+    }
   }
 
   function buildGrid(){
     grid.innerHTML = "";
-    // GROUND spans full width
+    // GROUND spans full width — star in top-left to set as default
     var g = document.createElement("div");
     g.className = "ant ground";
     g.dataset.pos = "0";
-    g.innerHTML = "<span class='nm'>GROUND</span><small>position 0</small>";
+    g.innerHTML = "<span class='star' data-star='0' title='Set as startup default'>&#9733;</span>" +
+                  "<span class='nm'>GROUND</span><small>position 0</small>";
     grid.appendChild(g);
     for(var i = 1; i <= maxAnt; i++){
       var d = document.createElement("div");
@@ -651,7 +1057,8 @@
       d.dataset.pos = String(i);
       var nm = names[String(i)];
       var title = nm ? esc(nm) : ("ANT " + i);
-      d.innerHTML = "<span class='edit' data-edit='" + i + "' title='Rename'>&#9998;</span>" +
+      d.innerHTML = "<span class='star' data-star='" + i + "' title='Set as startup default'>&#9733;</span>" +
+                    "<span class='edit' data-edit='" + i + "' title='Rename'>&#9998;</span>" +
                     "<span class='nm'>" + title + "</span><small>port " + i + "</small>";
       grid.appendChild(d);
     }
@@ -687,32 +1094,109 @@
 
   function highlight(){
     var items = grid.querySelectorAll(".ant");
+    var showStars = (startupPortMode === "default");
     items.forEach(function(el){
-      el.classList.toggle("active", Number(el.dataset.pos) === curPos);
+      var pos = Number(el.dataset.pos);
+      el.classList.toggle("active",      pos === curPos);
+      el.classList.toggle("is-default",  showStars && pos === defaultPort);
+      // Hide star elements entirely when in "last port" mode.
+      var star = el.querySelector(".star");
+      if(star) star.style.display = showStars ? "" : "none";
     });
   }
 
-  function select(pos){
-    api("/api/antenna?position=" + pos, "POST")
-      .then(render)
-      .then(function(){ toast("Selected " + (pos===0?"GROUND":"ANT "+pos), "ok"); })
+  function setDefaultPort(pos){
+    if(startupPortMode !== "default") return;  // stars hidden in last-port mode
+    // Clicking the star of the current default clears it (resets to GROUND=0).
+    var newDefault = (pos === defaultPort && pos !== 0) ? 0 : pos;
+    fetch("/api/default-port", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({default_port: newDefault})
+    }).then(function(r){ return r.json(); })
+      .then(function(d){
+        defaultPort = typeof d.default_port === "number" ? d.default_port : 0;
+        highlight();
+        var label = defaultPort === 0 ? "GROUND" : (names[String(defaultPort)] || ("ANT " + defaultPort));
+        toast("Default on boot: " + label, "ok");
+      })
       .catch(function(e){ toast(e.message, "err"); });
+  }
+
+  var _locked = false;
+
+  var _lockedOverlayTimer = null;
+  function lockedToast(){
+    var ov = document.getElementById("lockedOverlay");
+    ov.classList.add("show");
+    clearTimeout(_lockedOverlayTimer);
+    _lockedOverlayTimer = setTimeout(function(){ ov.classList.remove("show"); }, 2500);
+  }
+  document.getElementById("lockedOverlay").addEventListener("click", function(){
+    this.classList.remove("show");
+    clearTimeout(_lockedOverlayTimer);
+  });
+
+  function select(pos){
+    if(_locked){ lockedToast(); return; }
+    // Optimistically update the UI immediately — the API response will correct it
+    // if the device ends up on a different position (e.g. locked, clamped).
+    // Also pre-update _lastNotifiedPos so the poll confirmation doesn't fire a
+    // spurious notification for the user's own click.
+    _lastNotifiedPos = pos;
+    curPos = pos;
+    highlight();
+    var optLabel = pos === 0 ? "GROUND" : (names[String(pos)] || ("ANT " + pos));
+    document.getElementById("curLabel").textContent = optLabel;
+    api("/api/antenna?position=" + pos, "POST")
+      .then(function(s){
+        render(s);
+        toast("Selected " + (pos===0?"GROUND":"ANT "+pos), "ok");
+      })
+      .catch(function(e){
+        // Revert the optimistic update on error.
+        refresh();
+        toast(e.message, "err");
+      });
   }
 
   function refresh(){ api("/api/status").then(render).catch(function(){}); }
 
   // Events
   grid.addEventListener("click", function(e){
+    var starEl = e.target.closest("[data-star]");
+    if(starEl){ e.stopPropagation(); setDefaultPort(Number(starEl.dataset.star)); return; }
     var editEl = e.target.closest("[data-edit]");
     if(editEl){ e.stopPropagation(); rename(Number(editEl.dataset.edit)); return; }
     var el = e.target.closest(".ant");
     if(el) select(Number(el.dataset.pos));
   });
+
+  // Long-press on an antenna button (touch devices) opens the rename dialog.
+  var _lpTimer = null, _lpEl = null;
+  grid.addEventListener("touchstart", function(e){
+    var el = e.target.closest(".ant:not(.ground)");
+    if(!el) return;
+    _lpEl = el;
+    _lpTimer = setTimeout(function(){
+      _lpTimer = null;
+      rename(Number(_lpEl.dataset.pos));
+    }, 600);
+  }, {passive: true});
+  function _cancelLp(){ if(_lpTimer){ clearTimeout(_lpTimer); _lpTimer = null; } }
+  grid.addEventListener("touchend",    _cancelLp, {passive: true});
+  grid.addEventListener("touchmove",   _cancelLp, {passive: true});
+  grid.addEventListener("touchcancel", _cancelLp, {passive: true});
   document.getElementById("upBtn").onclick = function(){
+    if(_locked){ lockedToast(); return; }
     api("/api/antenna/up","POST").then(render).catch(function(e){toast(e.message,"err");});
   };
   document.getElementById("downBtn").onclick = function(){
+    if(_locked){ lockedToast(); return; }
     api("/api/antenna/down","POST").then(render).catch(function(e){toast(e.message,"err");});
+  };
+  document.getElementById("lockAntBtn").onclick = function(){
+    api("/api/lock/toggle","POST").then(refresh).catch(function(e){toast(e.message,"err");});
   };
   document.getElementById("maxUp").onclick = function(){
     if(maxAnt >= 7){ toast("max is 7","err"); return; }
@@ -735,7 +1219,7 @@
       var broker = c.host || "…";
       var hostname = document.getElementById("curHost").textContent || "ESP-XXXXXX";
       var prefix = (c.prefix && c.prefix.length) ? c.prefix : ("ubersdr/" + hostname);
-      [1,2,3,4,5].forEach(function(i){
+      [1,2,3,4,5,6].forEach(function(i){
         var hEl = document.getElementById("mqttCmdHost" + (i===1?"":i));
         var pEl = document.getElementById("mqttCmdPfx"  + (i===1?"":i));
         if(hEl) hEl.textContent = broker;
@@ -815,6 +1299,9 @@
   var restartModal = document.getElementById("restartModal");
   function openRestart(){ restartModal.classList.add("open"); }
   function closeRestart(){ restartModal.classList.remove("open"); }
+  document.getElementById("lockBtn").onclick = function(){
+    api("/api/lock/toggle","POST").then(refresh).catch(function(e){toast(e.message,"err");});
+  };
   document.getElementById("restartBtn").onclick = openRestart;
   document.getElementById("restartCancel").onclick = closeRestart;
   document.getElementById("restartClose").onclick = closeRestart;
@@ -871,15 +1358,24 @@
       evts.forEach(function(e){
         var tr = document.createElement("tr");
         var ts = e.ts || "<span style='color:var(--muted)'>—</span>";
-        // Format ISO timestamp nicely: show time part only if today
+        // Format ISO timestamp with local timezone offset applied.
         if(e.ts && e.ts.length >= 19){
           var d = new Date(e.ts);
           if(!isNaN(d)){
-            var today = new Date();
-            if(d.toDateString() === today.toDateString()){
-              ts = d.toLocaleTimeString();
+            var loc = localDate(d.getTime());
+            var todayLoc = localDate(Date.now());
+            var sameDay = loc.getUTCFullYear()  === todayLoc.getUTCFullYear() &&
+                          loc.getUTCMonth()     === todayLoc.getUTCMonth()    &&
+                          loc.getUTCDate()      === todayLoc.getUTCDate();
+            var tStr = String(loc.getUTCHours()).padStart(2,"0") + ":" +
+                       String(loc.getUTCMinutes()).padStart(2,"0") + ":" +
+                       String(loc.getUTCSeconds()).padStart(2,"0");
+            if(sameDay){
+              ts = tStr;
             } else {
-              ts = d.toLocaleDateString() + " " + d.toLocaleTimeString();
+              ts = loc.getUTCFullYear() + "-" +
+                   String(loc.getUTCMonth()+1).padStart(2,"0") + "-" +
+                   String(loc.getUTCDate()).padStart(2,"0") + " " + tStr;
             }
           }
         }
@@ -931,18 +1427,39 @@
         st.textContent = "Not connected";
       }
     }).catch(function(){ });
-    // Load NTP config
+    // Load NTP config + timezone offset
     api("/api/ntp").then(function(n){
       document.getElementById("ntpHost").value = n.host || "pool.ntp.org";
       document.getElementById("ntpPort").value = n.port || 123;
+      // Select the closest matching timezone option.
+      var tzSel = document.getElementById("tzOffset");
+      var tzVal = typeof n.tz_offset === "number" ? n.tz_offset : 0;
+      // Find exact match first, then nearest.
+      var best = null, bestDiff = Infinity;
+      for(var i = 0; i < tzSel.options.length; i++){
+        var v = parseInt(tzSel.options[i].value, 10);
+        var diff = Math.abs(v - tzVal);
+        if(diff < bestDiff){ bestDiff = diff; best = i; }
+      }
+      if(best !== null) tzSel.selectedIndex = best;
       var st = document.getElementById("ntpStatus");
       if(n.synced){
-        st.textContent = "✓ Synced — " + (n.time || "");
+        st.textContent = "✓ Synced — " + (n.local_time || n.time || "");
         st.style.color = "var(--accent)";
       } else {
         st.textContent = "Not yet synced";
         st.style.color = "var(--warn)";
       }
+    }).catch(function(){ });
+    api("/api/display/blank").then(function(b){
+      document.getElementById("blankEnabled").checked = !!b.enabled;
+      document.getElementById("blankTimeout").value   = b.timeout || 5;
+    }).catch(function(){ });
+    api("/api/display/mode").then(function(d){
+      document.getElementById("displayMode").value = d.mode || "port";
+    }).catch(function(){ });
+    api("/api/startup-port").then(function(d){
+      document.getElementById("startupPortMode").value = d.mode || "default";
     }).catch(function(){ });
   }
   function closeCfg(){ cfgModal.classList.remove("open"); }
@@ -964,23 +1481,338 @@
       device_name: document.getElementById("deviceName").value.trim()
     };
     if(pass) mqttBody.pass = pass;
+    var tzMin = parseInt(document.getElementById("tzOffset").value, 10) || 0;
+    _tzOffsetMin = tzMin;   // apply immediately so clock updates without reload
     var ntpBody = {
-      host: document.getElementById("ntpHost").value.trim() || "pool.ntp.org",
-      port: parseInt(document.getElementById("ntpPort").value, 10) || 123
+      host:      document.getElementById("ntpHost").value.trim() || "pool.ntp.org",
+      port:      parseInt(document.getElementById("ntpPort").value, 10) || 123,
+      tz_offset: tzMin
     };
+    var blankBody = {
+      enabled: document.getElementById("blankEnabled").checked,
+      timeout: parseInt(document.getElementById("blankTimeout").value, 10) || 5
+    };
+    var modeBody        = { mode: document.getElementById("displayMode").value };
+    var startupPortBody = { mode: document.getElementById("startupPortMode").value };
     Promise.all([
-      fetch("/api/mqtt", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(mqttBody) }).then(function(r){ return r.json(); }),
-      fetch("/api/ntp",  { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(ntpBody)  }).then(function(r){ return r.json(); })
-    ]).then(function(){
+      fetch("/api/mqtt",          { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(mqttBody)       }).then(function(r){ return r.json(); }),
+      fetch("/api/ntp",           { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(ntpBody)        }).then(function(r){ return r.json(); }),
+      fetch("/api/display/blank", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(blankBody)      }).then(function(r){ return r.json(); }),
+      fetch("/api/display/mode",  { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(modeBody)       }).then(function(r){ return r.json(); }),
+      fetch("/api/startup-port",  { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(startupPortBody)}).then(function(r){ return r.json(); })
+    ]).then(function(results){
+      // Update local startupPortMode so stars hide/show immediately.
+      if(results && results[4] && results[4].mode) startupPortMode = results[4].mode;
       closeCfg();
       toast("Settings saved", "ok");
       refresh();
+      highlight();
     }).catch(function(e){ toast(e.message, "err"); });
   };
 
+  // Factory reset / erase modal
+  var eraseModal = document.getElementById("eraseModal");
+  function openErase(){ eraseModal.classList.add("open"); }
+  function closeErase(){ eraseModal.classList.remove("open"); }
+  document.getElementById("cfgErase").onclick = function(){ closeCfg(); openErase(); };
+  document.getElementById("eraseClose").onclick  = closeErase;
+  document.getElementById("eraseCancel").onclick = closeErase;
+  eraseModal.addEventListener("click", function(e){ if(e.target === eraseModal) closeErase(); });
+  document.getElementById("eraseConfirm").onclick = function(){
+    closeErase();
+    // Trigger the erase — device will reboot; response may not arrive.
+    fetch("/erase").catch(function(){});
+    // Show the reboot overlay with a longer countdown (device needs to wipe + reboot).
+    var overlay = document.getElementById("reboot");
+    var secsEl  = document.getElementById("rebootSecs");
+    var remaining = 25;
+    secsEl.textContent = remaining;
+    overlay.classList.add("show");
+    document.getElementById("liveDot").classList.remove("live");
+    var done = false;
+    function finish(){ if(done) return; done = true; location.reload(); }
+    var tick = setInterval(function(){
+      remaining--;
+      if(remaining <= 0){ secsEl.textContent = 0; clearInterval(tick); clearInterval(poll); finish(); return; }
+      secsEl.textContent = remaining;
+    }, 1000);
+    var poll = setInterval(function(){
+      if(remaining > 22) return;
+      fetch("/api/status", {cache:"no-store"}).then(function(r){
+        if(r.ok){ clearInterval(tick); clearInterval(poll); finish(); }
+      }).catch(function(){});
+    }, 1500);
+  };
+
   document.addEventListener("keydown", function(e){
-    if(e.key === "Escape"){ closeModal(); closeInfo(); closeRename(); closeRestart(); closeCfg(); closeEvt(); }
+    if(e.key === "Escape"){
+      closeModal(); closeInfo(); closeRename(); closeRestart(); closeCfg(); closeEvt();
+      closeSched(); closeSchedEdit(); closeErase();
+    }
   });
+
+  // ---------------------------------------------------------------------------
+  // Schedule modal
+  // ---------------------------------------------------------------------------
+  var schedModal     = document.getElementById("schedModal");
+  var schedEditModal = document.getElementById("schedEditModal");
+  var _schedEditId   = -1;   // -1 = new entry, 0..9 = editing existing
+  var _schedDayMask  = 0x7F; // current day selection in the edit modal
+
+  var DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  function fmtDays(mask){
+    if((mask & 0x7F) === 0x7F) return "Every day";
+    if(mask === 0) return "Never";
+    var out = [];
+    for(var i=0;i<7;i++) if(mask & (1<<i)) out.push(DAY_NAMES[i]);
+    return out.join(", ");
+  }
+
+  function fmtPos(pos, names){
+    if(pos === 0) return "GROUND";
+    var nm = names && names[String(pos)];
+    return nm ? nm : ("ANT " + pos);
+  }
+
+  function loadSched(){
+    api("/api/schedule").then(function(s){
+      // Global flags
+      document.getElementById("schedMasterEnabled").checked = (s.enabled !== false);
+      document.getElementById("schedRespectLock").checked = !!s.respect_lock;
+      // Build table
+      var tb = document.querySelector("#schedTable tbody");
+      tb.innerHTML = "";
+      var entries = s.entries || [];
+      entries.forEach(function(e){
+        var tr = document.createElement("tr");
+        var hh = String(e.hour).padStart(2,"0");
+        var mm = String(e.minute).padStart(2,"0");
+        var posLabel = fmtPos(e.position, names);
+        tr.innerHTML =
+          "<td style='color:var(--muted);font-size:12px'>" + e.id + "</td>" +
+          "<td><label class='tog' style='transform:scale(.8);transform-origin:left'>" +
+            "<input type='checkbox' class='sched-en' data-id='" + e.id + "'" +
+            (e.enabled ? " checked" : "") + "><span class='slider'></span></label></td>" +
+          "<td style='font-size:12px'>" + esc(fmtDays(e.days)) + "</td>" +
+          "<td style='font-size:13px;font-weight:700'>" + hh + ":" + mm + "</td>" +
+          "<td style='font-size:12px'>" + esc(posLabel) + "</td>" +
+          "<td style='white-space:nowrap'>" +
+            "<button class='sched-edit' data-id='" + e.id + "' title='Edit'>&#9998;</button>" +
+            "<button class='sched-del'  data-id='" + e.id + "' title='Delete'>&#128465;</button>" +
+          "</td>";
+        tb.appendChild(tr);
+      });
+    }).catch(function(e){ toast(e.message,"err"); });
+  }
+
+  function openSched(){ schedModal.classList.add("open"); loadSched(); }
+  function closeSched(){ schedModal.classList.remove("open"); }
+  document.getElementById("schedBtn").onclick = openSched;
+  document.getElementById("schedClose").onclick = closeSched;
+  schedModal.addEventListener("click", function(e){ if(e.target===schedModal) closeSched(); });
+
+  // Master enable toggle saves immediately.
+  document.getElementById("schedMasterEnabled").onchange = function(){
+    fetch("/api/schedule", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({scheduler_enabled: this.checked})
+    }).then(function(r){ return r.json(); })
+      .then(function(){ toast(this.checked ? "Scheduler enabled" : "Scheduler paused","ok"); }.bind(this))
+      .catch(function(e){ toast(e.message,"err"); });
+  };
+
+  // Respect-lock toggle saves immediately.
+  document.getElementById("schedRespectLock").onchange = function(){
+    fetch("/api/schedule", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({respect_lock: this.checked})
+    }).then(function(r){ return r.json(); })
+      .then(function(){ toast("Saved","ok"); })
+      .catch(function(e){ toast(e.message,"err"); });
+  };
+
+  // Enable/disable toggle in the table.
+  document.getElementById("schedTable").addEventListener("change", function(e){
+    var el = e.target;
+    if(!el.classList.contains("sched-en")) return;
+    var id = parseInt(el.dataset.id, 10);
+    var checked = el.checked;
+    fetch("/api/schedule", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({id: id, enabled: checked})
+    }).then(function(r){ return r.json(); })
+      .then(function(s){
+        toast(checked ? "Entry enabled" : "Entry disabled", "ok");
+        // Refresh the table so the badge and next-firing time update.
+        loadSched();
+        refresh();
+      })
+      .catch(function(err){ toast(err.message,"err"); el.checked = !checked; });
+  });
+
+  // Edit / delete buttons in the table.
+  document.getElementById("schedTable").addEventListener("click", function(e){
+    var editEl = e.target.closest(".sched-edit");
+    var delEl  = e.target.closest(".sched-del");
+    if(editEl){
+      var id = parseInt(editEl.dataset.id, 10);
+      openSchedEdit(id);
+    } else if(delEl){
+      var id = parseInt(delEl.dataset.id, 10);
+      if(!confirm("Delete schedule entry " + id + "?")) return;
+      fetch("/api/schedule?id=" + id, {method:"DELETE"})
+        .then(function(r){ return r.json(); })
+        .then(function(){ loadSched(); toast("Deleted","ok"); })
+        .catch(function(e){ toast(e.message,"err"); });
+    }
+  });
+
+  // Add button: open edit modal for a new (first disabled) slot.
+  document.getElementById("schedAddBtn").onclick = function(){
+    openSchedEdit(-1);
+  };
+
+  // --- Edit modal ---
+  function openSchedEdit(id){
+    _schedEditId = id;
+    document.getElementById("schedEditTitle").textContent =
+      id < 0 ? "Add schedule entry" : ("Edit entry " + id);
+    // Defaults for new entry.
+    var hour = 8, min = 0, pos = 1, mask = 0x7F, enabled = true;
+    if(id >= 0){
+      // Load from current table data via API.
+      api("/api/schedule").then(function(s){
+        var e = (s.entries||[]).find(function(x){ return x.id===id; });
+        if(e){
+          hour = e.hour; min = e.minute; pos = e.position;
+          mask = e.days; enabled = e.enabled;
+        }
+        _fillSchedEdit(hour, min, pos, mask, enabled);
+      }).catch(function(){ _fillSchedEdit(hour,min,pos,mask,enabled); });
+    } else {
+      _fillSchedEdit(hour, min, pos, mask, enabled);
+    }
+    schedEditModal.classList.add("open");
+  }
+
+  function _buildSchedPosSelect(){
+    var sel = document.getElementById("schedEditPos");
+    // Rebuild options to match the currently configured max antennas.
+    sel.innerHTML = "<option value='0'>GROUND (position 0)</option>";
+    for(var i = 1; i <= maxAnt; i++){
+      var nm = names[String(i)];
+      var label = nm ? (nm + " (port " + i + ")") : ("ANT " + i);
+      var opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = label;
+      sel.appendChild(opt);
+    }
+  }
+
+  function _fillSchedEdit(hour, min, pos, mask, enabled){
+    _buildSchedPosSelect();
+    document.getElementById("schedEditHour").value    = hour;
+    document.getElementById("schedEditMin").value     = min;
+    // Clamp pos to maxAnt in case a saved entry references a port no longer in range.
+    document.getElementById("schedEditPos").value     = String(Math.min(pos, maxAnt));
+    document.getElementById("schedEditEnabled").checked = enabled;
+    _schedDayMask = mask;
+    _updateDayBtns();
+  }
+
+  function _updateDayBtns(){
+    document.querySelectorAll(".daybtn").forEach(function(btn){
+      var d = btn.dataset.day;
+      if(d === "all"){
+        btn.classList.toggle("on", (_schedDayMask & 0x7F) === 0x7F);
+      } else {
+        btn.classList.toggle("on", !!(_schedDayMask & (1 << parseInt(d,10))));
+      }
+    });
+  }
+
+  document.getElementById("schedDayPicker").addEventListener("click", function(e){
+    var btn = e.target.closest(".daybtn");
+    if(!btn) return;
+    var d = btn.dataset.day;
+    if(d === "all"){
+      _schedDayMask = (_schedDayMask & 0x7F) === 0x7F ? 0 : 0x7F;
+    } else {
+      _schedDayMask ^= (1 << parseInt(d,10));
+    }
+    _updateDayBtns();
+  });
+
+  function closeSchedEdit(){ schedEditModal.classList.remove("open"); }
+  document.getElementById("schedEditClose").onclick  = closeSchedEdit;
+  document.getElementById("schedEditCancel").onclick = closeSchedEdit;
+  schedEditModal.addEventListener("click", function(e){
+    if(e.target===schedEditModal) closeSchedEdit();
+  });
+
+  document.getElementById("schedEditSave").onclick = function(){
+    var hour    = parseInt(document.getElementById("schedEditHour").value, 10);
+    var min     = parseInt(document.getElementById("schedEditMin").value,  10);
+    var pos     = parseInt(document.getElementById("schedEditPos").value,  10);
+    var enabled = document.getElementById("schedEditEnabled").checked;
+    if(isNaN(hour)||hour<0||hour>23){ toast("Hour must be 0–23","err"); return; }
+    if(isNaN(min) ||min <0||min >59){ toast("Minute must be 0–59","err"); return; }
+    if(_schedDayMask === 0){ toast("Select at least one day","err"); return; }
+
+    // For a new entry, find the first disabled slot.
+    function doSave(id){
+      fetch("/api/schedule", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          id:       id,
+          enabled:  enabled,
+          days:     _schedDayMask,
+          hour:     hour,
+          minute:   min,
+          position: pos
+        })
+      }).then(function(r){ return r.json(); })
+        .then(function(){
+          closeSchedEdit();
+          loadSched();
+          toast("Schedule saved","ok");
+        })
+        .catch(function(e){ toast(e.message,"err"); });
+    }
+
+    if(_schedEditId >= 0){
+      doSave(_schedEditId);
+    } else {
+      // Find first disabled slot.
+      api("/api/schedule").then(function(s){
+        var entries = s.entries || [];
+        var slot = entries.find(function(e){ return !e.enabled; });
+        if(!slot){ toast("All 10 slots are in use — delete one first","err"); return; }
+        doSave(slot.id);
+      }).catch(function(e){ toast(e.message,"err"); });
+    }
+  };
+
+  // Boot: load timezone offset immediately so the clock shows the right zone
+  // before the user opens settings. The status poll also carries tz_offset so
+  // it stays in sync after a save.
+  api("/api/ntp").then(function(n){
+    if(typeof n.tz_offset === "number") _tzOffsetMin = n.tz_offset;
+  }).catch(function(){});
+
+  // Boot: load startup port mode and default port so stars render correctly on first paint.
+  api("/api/startup-port").then(function(d){
+    startupPortMode = d.mode || "default";
+    return api("/api/default-port");
+  }).then(function(d){
+    if(typeof d.default_port === "number") defaultPort = d.default_port;
+    highlight();
+  }).catch(function(){});
 
   // Boot + poll every 3s to reflect physical-button / OLED changes.
   refresh();
@@ -988,6 +1820,11 @@
   // Clock ticks every second (locally, no extra requests).
   setInterval(clockTick, 1000);
 })();
+</script>
+<script>
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("/sw.js").catch(function(){});
+}
 </script>
 </body>
 </html>

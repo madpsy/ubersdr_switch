@@ -11,6 +11,32 @@ ESP8266 internal pull-ups enabled (each pin driven HIGH in `setup()` — see
 | **SET**   | GPIO0 | Set max antenna count | `0x402048d5` | Displays `MAX`; increments/stores the max selectable antenna limit (default 7, DRAM `0x3ffe84e0`) |
 | **ERASE** | GPIO2 | Erase WiFi config (hold) | `0x402045f9` | Prompts `pres ERASE for erase stored information`, `hold the button`; on long-press erases stored WiFi credentials and reboots |
 
+## Replica firmware gestures
+
+The replica firmware extends the stock button behaviour with **hold gestures**:
+
+| Button | Short press | Hold 3 s |
+|--------|-------------|----------|
+| **▲ UP** | Step to next antenna | Toggle **lock / unlock** — when locked, all antenna changes (buttons, API, MQTT) are blocked. The OLED shows a padlock icon. |
+| **▼ DOWN** | Step to previous antenna | Show the device **IP address** on the OLED for 3 seconds (shows `No WiFi` if not connected). Useful for finding the device address without opening a browser. |
+| **SET** | Bump max antennas (wraps 0→7→0) | — |
+| **ERASE** | — | Wipe stored WiFi credentials and reboot |
+
+### Lock / unlock
+
+- **Hold UP for 3 s** to toggle the lock state.
+- When **locked**: UP/DOWN button presses are ignored; REST API antenna-change calls return HTTP 423; MQTT antenna commands are silently ignored.
+- The OLED status screen shows a small padlock icon in the top-right corner.
+- The web UI shows a red padlock button and a full-screen overlay when a change is attempted while locked.
+- Lock state is **not** persisted — it resets to unlocked on reboot.
+
+### Show IP (hold DOWN)
+
+- **Hold DOWN for 3 s** to display the device's IP address on the OLED for 3 seconds.
+- After the 3 seconds the normal status screen resumes automatically.
+- If the device is not connected to WiFi, `No WiFi` is shown instead.
+- This is the quickest way to find the device's address without a browser or router admin panel.
+
 ## Evidence
 
 ### UP / DOWN (GPIO3 / GPIO1)

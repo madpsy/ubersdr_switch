@@ -118,10 +118,42 @@ find_pio() {
     return 1
 }
 PIO="$(find_pio || true)"
+
+# --- locate esptool (used as fallback when PlatformIO is not installed) ---
+find_esptool() {
+    for c in esptool esptool.py \
+              "$HOME/.platformio/packages/tool-esptoolpy/esptool.py" \
+              "$HOME/.platformio/penv/bin/esptool.py"; do
+        command -v "$c" >/dev/null 2>&1 && { echo "$c"; return 0; }
+        [ -x "$c" ] && { echo "$c"; return 0; }
+    done
+    return 1
+}
+ESPTOOL="$(find_esptool || true)"
+
+PREBUILT_FW="$SCRIPT_DIR/prebuilt/firmware.bin"
+PREBUILT_FS="$SCRIPT_DIR/prebuilt/littlefs.bin"
+# LittleFS offset for 4M2M layout (eagle.flash.4m2m.ld): 0x200000
+LITTLEFS_OFFSET="0x200000"
+
+USE_PREBUILT=0
 if [ -z "${PIO:-}" ]; then
-    echo "error: PlatformIO (pio) not found." >&2
-    echo "Install it from https://platformio.org/install or run: pip install platformio" >&2
-    exit 1
+    if [ -z "${ESPTOOL:-}" ]; then
+        echo "error: neither PlatformIO nor esptool found." >&2
+        echo "  Install PlatformIO: https://platformio.org/install" >&2
+        echo "  Or install esptool:  pip install esptool" >&2
+        exit 1
+    fi
+    if [ ! -f "$PREBUILT_FW" ] || [ ! -f "$PREBUILT_FS" ]; then
+        echo "error: PlatformIO not found and prebuilt binaries are missing." >&2
+        echo "  Expected: $PREBUILT_FW" >&2
+        echo "            $PREBUILT_FS" >&2
+        echo "  Install PlatformIO to build from source, or add the prebuilt binaries." >&2
+        exit 1
+    fi
+    echo "==> PlatformIO not found — using prebuilt binaries with esptool."
+    USE_PREBUILT=1
+    DO_BUILD=0   # nothing to build
 fi
 
 # --- hardware detection -----------------------------------------------------
@@ -298,7 +330,7 @@ echo "==> Mode:       $MODE"
 
 # Optional explicit build first so compile errors surface clearly before flashing.
 # The PlatformIO upload targets also build on their own; skip with --no-build.
-if [ "$DO_BUILD" -eq 1 ]; then
+if [ "$DO_BUILD" -eq 1 ] && [ "$USE_PREBUILT" -eq 0 ]; then
     case "$MODE" in
         fw)  "$PIO" run -e "$ENV" ;;
         fs)  "$PIO" run -e "$ENV" -t buildfs ;;
@@ -307,16 +339,30 @@ if [ "$DO_BUILD" -eq 1 ]; then
 fi
 
 flash_fw() {
-    echo "==> Flashing firmware ($ENV)..."
-    "$PIO" run -e "$ENV" -t upload --upload-port "$PORT"
+    if [ "$USE_PREBUILT" -eq 1 ]; then
+        echo "==> Flashing prebuilt firmware ($PREBUILT_FW)..."
+        "$ESPTOOL" --port "$PORT" --baud "$BAUD" write_flash \
+            --flash_mode dio --flash_freq 40m --flash_size 4MB \
+            0x0 "$PREBUILT_FW"
+    else
+        echo "==> Flashing firmware ($ENV)..."
+        "$PIO" run -e "$ENV" -t upload --upload-port "$PORT"
+    fi
 }
 flash_fs() {
     # NOTE: uploadfs REPLACES the entire LittleFS partition with a fresh image built
     # from data/. This is safe for user settings: custom antenna names, the max value
     # and WiFi credentials are all stored OUTSIDE LittleFS (names + max in the EEPROM
     # sector, WiFi in the SDK RF-config region), so none of them are affected here.
-    echo "==> Flashing web assets (LittleFS)..."
-    "$PIO" run -e "$ENV" -t uploadfs --upload-port "$PORT"
+    if [ "$USE_PREBUILT" -eq 1 ]; then
+        echo "==> Flashing prebuilt web assets ($PREBUILT_FS) at $LITTLEFS_OFFSET..."
+        "$ESPTOOL" --port "$PORT" --baud "$BAUD" write_flash \
+            --flash_mode dio --flash_freq 40m --flash_size 4MB \
+            "$LITTLEFS_OFFSET" "$PREBUILT_FS"
+    else
+        echo "==> Flashing web assets (LittleFS)..."
+        "$PIO" run -e "$ENV" -t uploadfs --upload-port "$PORT"
+    fi
 }
 
 case "$MODE" in

@@ -43,18 +43,29 @@ public:
     typedef void   (*MaxFn)(int value);
     typedef void   (*NameFn)(int position, const String &name);
     typedef void   (*RestartFn)();
+    // text, align char ('L'/'R'/'C'), duration ms, wasBlank (re-blank after message)
+    typedef void   (*DisplayFn)(const String &text, char align, uint32_t durationMs, bool wasBlank);
+    // lock: called with true=lock, false=unlock
+    typedef void   (*LockFn)(bool locked);
+
+    typedef void (*LockToggleFn)();
 
     void begin(const MqttConfig &cfg, const String &hostname,
                StatusFn statusFn, InfoFn infoFn, TimeFn timeFn,
-               SetFn setFn, MaxFn maxFn, NameFn nameFn, RestartFn restartFn) {
-        _cfg       = cfg;
-        _statusFn  = statusFn;
-        _infoFn    = infoFn;
-        _timeFn    = timeFn;
-        _setFn     = setFn;
-        _maxFn     = maxFn;
-        _nameFn    = nameFn;
-        _restartFn = restartFn;
+               SetFn setFn, MaxFn maxFn, NameFn nameFn, RestartFn restartFn,
+               DisplayFn displayFn = nullptr, LockFn lockFn = nullptr,
+               LockToggleFn lockToggleFn = nullptr) {
+        _cfg          = cfg;
+        _statusFn     = statusFn;
+        _infoFn       = infoFn;
+        _timeFn       = timeFn;
+        _setFn        = setFn;
+        _maxFn        = maxFn;
+        _nameFn       = nameFn;
+        _restartFn    = restartFn;
+        _displayFn    = displayFn;
+        _lockFn       = lockFn;
+        _lockToggleFn = lockToggleFn;
 
         // Resolve the topic prefix: explicit config, else "ubersdr/<hostname>".
         _prefix = strlen(cfg.prefix) ? String(cfg.prefix)
@@ -161,6 +172,8 @@ private:
             _client.subscribe(topic("max/set").c_str());
             _client.subscribe(topic("name/set").c_str());
             _client.subscribe(topic("restart").c_str());
+            _client.subscribe(topic("display").c_str());
+            _client.subscribe(topic("lock").c_str());
             LOG("MQTT: subscribed to command topics");
         }
         publishState();
@@ -190,6 +203,35 @@ private:
             if (_nameFn && pos >= 1) _nameFn(pos, nm);
         } else if (t == topic("restart")) {
             if (_restartFn) _restartFn();
+        } else if (t == topic("display")) {
+            // Payload: {"text":"...","duration":3,"align":"center"}
+            // All fields optional except "text".
+            String txt = extractStr(msg, "\"text\":");
+            if (txt.length() == 0) return;   // ignore empty text
+            long durSec = 1;
+            int dk = msg.indexOf("\"duration\":");
+            if (dk >= 0) durSec = msg.substring(dk + 11).toInt();
+            if (durSec < 1)  durSec = 1;
+            if (durSec > 60) durSec = 60;
+            char aln = 'C';
+            String alnStr = extractStr(msg, "\"align\":");
+            if      (alnStr == "left")  aln = 'L';
+            else if (alnStr == "right") aln = 'R';
+            // wasBlank is determined by the caller lambda (captured from g_oled.isBlank()).
+            if (_displayFn) _displayFn(txt, aln, (uint32_t)(durSec * 1000L), false);
+        } else if (t == topic("lock")) {
+            // Payload: "lock"/"true"/"1" = lock, "unlock"/"false"/"0" = unlock,
+            // "toggle" = toggle (calls lockFn with current_state XOR true).
+            String cmd = msg; cmd.toLowerCase(); cmd.trim();
+            if (cmd == "toggle") {
+                if (_lockToggleFn) _lockToggleFn();
+            } else {
+                bool doLock;
+                if      (cmd == "lock"   || cmd == "true"  || cmd == "1") doLock = true;
+                else if (cmd == "unlock" || cmd == "false" || cmd == "0") doLock = false;
+                else return;
+                if (_lockFn) _lockFn(doLock);
+            }
         }
     }
 
@@ -224,6 +266,9 @@ private:
     MaxFn     _maxFn     = nullptr;
     NameFn    _nameFn    = nullptr;
     RestartFn _restartFn = nullptr;
+    DisplayFn    _displayFn     = nullptr;
+    LockFn       _lockFn        = nullptr;
+    LockToggleFn _lockToggleFn  = nullptr;
 
     static Mqtt *_self;   // for the static callback trampoline
 };
