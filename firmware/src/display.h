@@ -28,6 +28,19 @@
 //                  pin" module is the number-one cause of a dead Heltec OLED.
 //   * GEOMETRY   : 128x32. Initialising it as 128x64 produces a garbled/blank display
 //                  and pushes half the text off-screen.
+//
+// FONTS:
+//   Large/prominent text (splash, antenna label, clock, banner, MAX) uses proportional
+//   TrueType-derived GFX fonts for a smoother appearance:
+//     FreeSansBold12pt7b — ~18 px cap-height, used for short strings (≤6 chars)
+//     FreeSansBold9pt7b  — ~13 px cap-height, used for longer strings or when 12pt
+//                          doesn't fit the available vertical space
+//   Both are included with the Adafruit GFX Library (no extra dependency).
+//   Small/status text (bottom row, AP screen, erase prompts) keeps the built-in 6×8
+//   bitmap font (size 1) — blockiness is imperceptible at that scale.
+//
+//   drawLarge() measures actual pixel width via getTextBounds() so centering is exact
+//   for proportional glyphs, then restores the default font for subsequent small text.
 
 #pragma once
 
@@ -35,6 +48,8 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Fonts/FreeSansBold9pt7b.h>
+#include <Fonts/FreeSansBold12pt7b.h>
 
 #include "config.h"
 #include "debuglog.h"
@@ -125,42 +140,82 @@ public:
         showBanner();
     }
 
-    // Boot splash: display the device name in the largest bold text that fills the
-    // 128x32 panel. Auto-sizes from 3 down to 1 so long names still fit. Faux-bold
-    // by over-printing with a 1px x-offset.
+    // Boot splash: display the device name in the largest smooth font that fills the
+    // 128x32 panel. Cascades: FreeSansBold12pt7b → FreeSansBold9pt7b → default size 2
+    // → default size 1, picking the first that fits the panel width.
     void showSplash(const char *name = "UberSDR") {
         if (!_oled) return;
         if (!name || !name[0]) name = "UberSDR";
 
-        // Pick the largest text size (3→2→1) where the text fits the panel width.
-        uint8_t size = 3;
-        for (; size > 1; size--) {
-            int w = (int)strlen(name) * 6 * size;
-            if (w <= OLED_W) break;
-        }
-        int glyphH = 8 * size;
-        int textW  = (int)strlen(name) * 6 * size;
-        int x = (OLED_W - textW) / 2;
-        if (x < 0) x = 0;
-        int y = (OLED_H - glyphH) / 2;
-        if (y < 0) y = 0;
-
         _oled->clearDisplay();
-        _oled->setTextSize(size);
-        // Faux-bold: draw the string twice, offset by 1px horizontally.
-        _oled->setCursor(x, y);      _oled->print(name);
-        _oled->setCursor(x + 1, y);  _oled->print(name);
+
+        // Try each font/size in descending preference; use the first that fits width.
+        // GFX custom fonts: measure with getTextBounds (proportional).
+        // Fallback default font: measure with strlen * 6 * size (monospace).
+        struct { const GFXfont *font; uint8_t defSize; } cascade[] = {
+            { &FreeSansBold12pt7b, 0 },
+            { &FreeSansBold9pt7b,  0 },
+            { nullptr,             2 },
+            { nullptr,             1 },
+        };
+
+        int16_t bx, by; uint16_t bw, bh;
+        for (auto &c : cascade) {
+            int textW, textH;
+            if (c.font) {
+                _oled->setFont(c.font);
+                _oled->getTextBounds(name, 0, 0, &bx, &by, &bw, &bh);
+                textW = (int)bw;
+                textH = (int)bh;
+            } else {
+                _oled->setFont(nullptr);
+                textW = (int)strlen(name) * 6 * c.defSize;
+                textH = 8 * c.defSize;
+                _oled->setTextSize(c.defSize);
+            }
+            if (textW <= OLED_W) {
+                int x, y;
+                if (c.font) {
+                    // GFX custom fonts: cursor is at the baseline, not the top.
+                    // bx is the left-edge offset of the bounding box from cursor x=0.
+                    // Centre the bounding box; cursor x = centreX - bx.
+                    x = (OLED_W - textW) / 2 - bx;
+                    if (x < 0) x = 0;
+                    // by is negative (distance from baseline up to top of bounding box).
+                    int centreY = (OLED_H - textH) / 2;
+                    if (centreY < 0) centreY = 0;
+                    y = centreY - by;
+                } else {
+                    x = (OLED_W - textW) / 2;
+                    if (x < 0) x = 0;
+                    y = (OLED_H - textH) / 2;
+                    if (y < 0) y = 0;
+                }
+                _oled->setCursor(x, y);
+                _oled->print(name);
+                break;
+            }
+        }
+
+        _oled->setFont(nullptr);   // restore default font
+        _oled->setTextSize(1);
         _oled->display();
     }
 
     // Power-on self-test frame so a blank/mis-wired panel is obviously distinguishable
     // from a working one: a border + banner text (sized for 128x32).
+    // "ANTENNA" uses FreeSansBold9pt7b; "SELECTOR V2" uses the default size-1 font.
     void showBanner() {
         if (!_oled) return;
         _oled->clearDisplay();
         _oled->drawRect(0, 0, OLED_W, OLED_H, SSD1306_WHITE);
-        drawTextCentered("ANTENNA", 4, 2);
-        drawTextCentered("SELECTOR V2", 22, 1);
+
+        // "ANTENNA" — smooth font, centred in the top ~22px.
+        drawLarge("ANTENNA", 3, 20, &FreeSansBold9pt7b);
+
+        // "SELECTOR V2" — small default font on the bottom row.
+        drawSmall("SELECTOR V2", 23);
+
         _oled->display();
     }
 
@@ -206,11 +261,12 @@ public:
     //
     // Multi-line: split on '\n' (or the two-char sequence "\\n" from JSON strings).
     // Auto-sizes to the largest font where ALL lines fit the panel width AND the total
-    // block height fits the 32px panel:
-    //   size 3: 24px/line — fits 1 line,  max 6 chars/line
-    //   size 2: 16px/line — fits 2 lines, max 10 chars/line
-    //   size 1:  8px/line — fits 4 lines, max 21 chars/line
-    // Lines that are still too wide at size 1 are truncated with '>'.
+    // block height fits the 32px panel. Font cascade (largest to smallest):
+    //   FreeSansBold12pt7b: ~18px/line — fits 1 line
+    //   FreeSansBold9pt7b:  ~13px/line — fits 1–2 lines
+    //   default size 2:     16px/line  — fits 2 lines, max 10 chars/line
+    //   default size 1:      8px/line  — fits 4 lines, max 21 chars/line
+    // Lines that are still too wide at default size 1 are truncated with '>'.
     // `align`: 'L' = left, 'R' = right, anything else = centre (default).
     // `wasBlank`: pass true if the display was blanked when this call was triggered
     // (checked by the caller before any unblank side-effects). When true, the display
@@ -227,7 +283,7 @@ public:
         String src = text;
         src.replace("\\n", "\n");
 
-        // Split into lines (up to 4 — the max at size 1).
+        // Split into lines (up to 4 — the max at default size 1).
         String lines[4];
         uint8_t nLines = 0;
         int start = 0;
@@ -239,41 +295,91 @@ public:
         }
         if (nLines == 0) nLines = 1;
 
-        // Find the longest line (in chars).
-        int maxChars = 0;
-        for (uint8_t i = 0; i < nLines; i++) {
-            if ((int)lines[i].length() > maxChars) maxChars = (int)lines[i].length();
-        }
-
-        // Pick the largest size where all lines fit width AND total height fits panel.
-        uint8_t size = 3;
-        for (; size > 1; size--) {
-            bool wOk = (maxChars * 6 * size <= OLED_W);
-            bool hOk = ((int)nLines * 8 * size <= OLED_H);
-            if (wOk && hOk) break;
-        }
-
-        int glyphH   = 8 * size;
-        int blockH   = (int)nLines * glyphH;
-        int startY   = (OLED_H - blockH) / 2;
-        if (startY < 0) startY = 0;
-
         _oled->clearDisplay();
-        _oled->setTextSize(size);
 
-        for (uint8_t i = 0; i < nLines; i++) {
-            String &ln = lines[i];
-            // Truncate with '>' if still too wide at size 1.
-            if (size == 1 && (int)ln.length() * 6 > OLED_W) {
-                ln = ln.substring(0, 20) + ">";
+        // --- Font cascade for custom messages ---
+        // Try GFX fonts first (proportional), then default bitmap font sizes.
+        // For GFX fonts we measure each line with getTextBounds.
+        struct FontOption {
+            const GFXfont *font;
+            uint8_t        defSize;   // 0 = use GFX font
+            int            lineH;     // approximate line height in px
+        };
+        FontOption opts[] = {
+            { &FreeSansBold12pt7b, 0, 20 },
+            { &FreeSansBold9pt7b,  0, 15 },
+            { nullptr,             2, 16 },
+            { nullptr,             1,  8 },
+        };
+
+        int16_t bx, by; uint16_t bw, bh;
+        bool rendered = false;
+
+        for (auto &opt : opts) {
+            // Check all lines fit width and total block fits height.
+            int blockH = (int)nLines * opt.lineH;
+            if (blockH > OLED_H) continue;
+
+            bool allFit = true;
+            for (uint8_t i = 0; i < nLines; i++) {
+                int lw;
+                if (opt.font) {
+                    _oled->setFont(opt.font);
+                    _oled->getTextBounds(lines[i].c_str(), 0, 0, &bx, &by, &bw, &bh);
+                    lw = (int)bw;
+                } else {
+                    lw = (int)lines[i].length() * 6 * opt.defSize;
+                }
+                if (lw > OLED_W) { allFit = false; break; }
             }
-            int lw = (int)ln.length() * 6 * size;
-            int x;
-            if      (align == 'L') x = 0;
-            else if (align == 'R') x = OLED_W - lw;
-            else                   x = (OLED_W - lw) / 2;
-            if (x < 0) x = 0;
-            _oled->setCursor(x, startY + (int)i * glyphH);
+            if (!allFit) continue;
+
+            // This option fits — render all lines.
+            if (!opt.font) {
+                _oled->setFont(nullptr);
+                _oled->setTextSize(opt.defSize);
+            }
+            int startY = (OLED_H - blockH) / 2;
+            if (startY < 0) startY = 0;
+
+            for (uint8_t i = 0; i < nLines; i++) {
+                String &ln = lines[i];
+                // Truncate with '>' if still too wide at default size 1.
+                if (!opt.font && opt.defSize == 1 && (int)ln.length() * 6 > OLED_W) {
+                    ln = ln.substring(0, 20) + ">";
+                }
+                int lw, cursorY;
+                if (opt.font) {
+                    _oled->setFont(opt.font);
+                    _oled->getTextBounds(ln.c_str(), 0, 0, &bx, &by, &bw, &bh);
+                    lw = (int)bw;
+                    // Cursor y = top of line area - by (by is negative = offset to top).
+                    cursorY = startY + (int)i * opt.lineH - by;
+                } else {
+                    lw = (int)ln.length() * 6 * opt.defSize;
+                    cursorY = startY + (int)i * opt.lineH;
+                }
+                int x;
+                if      (align == 'L') x = 0;
+                else if (align == 'R') x = OLED_W - lw;
+                else                   x = (OLED_W - lw) / 2;
+                if (x < 0) x = 0;
+                _oled->setCursor(x, cursorY);
+                _oled->print(ln.c_str());
+            }
+            rendered = true;
+            break;
+        }
+
+        _oled->setFont(nullptr);
+        _oled->setTextSize(1);
+
+        if (!rendered) {
+            // Absolute fallback: print first line truncated at size 1.
+            String ln = lines[0].substring(0, 20);
+            int lw = (int)ln.length() * 6;
+            int x = (OLED_W - lw) / 2;
+            _oled->setCursor(x < 0 ? 0 : x, 12);
             _oled->print(ln.c_str());
         }
 
@@ -413,7 +519,7 @@ public:
             redraw = true;
         }
 
-        // Bottom-line scroll — both modes may need it.
+        // Bottom-line scroll — both modes may need it (default font, fixed 6px/char).
         {
             String bottom = effectiveClockMode
                 ? _clockBottomLine(_statusLabel, deviceName)
@@ -441,12 +547,13 @@ public:
         _redrawStatus(deviceName, timeStr, displayMode);
     }
 
-    // SET button: "MAX n".
+    // SET button: "MAX n" — rendered with FreeSansBold9pt7b for a smooth look.
     void showMax(int n) {
         if (!_oled) return;
         _oled->clearDisplay();
         String s = String(STR_MAX) + " " + String(n);
-        drawTextCentered(s.c_str(), 8, 3);
+        // Centre vertically in the full 32px panel.
+        drawLarge(s.c_str(), 0, OLED_H, &FreeSansBold9pt7b);
         _oled->display();
     }
 
@@ -455,9 +562,9 @@ public:
     void showErasePrompt(int countdown) {
         if (!_oled) return;
         _oled->clearDisplay();
-        drawTextCentered("press ERASE for", 0, 1);
-        drawTextCentered("erase stored info", 10, 1);
-        drawTextCentered(String(countdown).c_str(), 20, 1);
+        drawSmall("press ERASE for", 0);
+        drawSmall("erase stored info", 10);
+        drawSmall(String(countdown).c_str(), 20);
         _oled->display();
     }
 
@@ -465,8 +572,9 @@ public:
     void showEraseHold() {
         if (!_oled) return;
         _oled->clearDisplay();
-        drawTextCentered(STR_ERASE, 2, 2);
-        drawTextCentered(STR_HOLD_BUTTON, 22, 1);
+        // "ERASE" in smooth font, centred in the top 22px.
+        drawLarge(STR_ERASE, 0, 22, &FreeSansBold9pt7b);
+        drawSmall(STR_HOLD_BUTTON, 23);
         _oled->display();
     }
 
@@ -474,8 +582,8 @@ public:
     void showAP(const String &ssid, const String &url) {
         if (!_oled) return;
         _oled->clearDisplay();
-        drawTextCentered((String("ssid: ") + ssid).c_str(), 6, 1);
-        drawTextCentered(url.c_str(), 20, 1);
+        drawSmall((String("ssid: ") + ssid).c_str(), 6);
+        drawSmall(url.c_str(), 20);
         _oled->display();
     }
 
@@ -484,8 +592,8 @@ public:
     void showForceAP() {
         if (!_oled) return;
         _oled->clearDisplay();
-        drawTextCentered("hold the button", 6, 1);
-        drawTextCentered("AutoConnect (+)", 20, 1);
+        drawSmall("hold the button", 6);
+        drawSmall("AutoConnect (+)", 20);
         _oled->display();
     }
 
@@ -493,26 +601,52 @@ public:
         if (!_oled) return;
         _oled->clearDisplay();
         if (line2.length()) {
-            drawTextCentered(line1.c_str(), 6, 1);
-            drawTextCentered(line2.c_str(), 20, 1);
+            drawSmall(line1.c_str(), 6);
+            drawSmall(line2.c_str(), 20);
         } else {
-            drawTextCentered(line1.c_str(), 12, 1);
+            drawSmall(line1.c_str(), 12);
         }
         _oled->display();
     }
 
 private:
-    // Draw text horizontally centred at the given top y, using the built-in GFX font
-    // (6x8 px per glyph at size 1, scaled by `size`). GFX draws from the cursor as the
-    // TOP-LEFT corner, so we compute X purely from the glyph count.
-    void drawTextCentered(const char *text, int y, uint8_t size) {
-        _oled->setTextSize(size);
-        int glyphW = 6 * size;                 // advance width of the built-in font
-        int textW  = (int)strlen(text) * glyphW;
-        int x = (OLED_W - textW) / 2;
+    // Draw text horizontally centred using the built-in GFX bitmap font at size 1
+    // (6×8 px per glyph). Used for all small/status text. GFX draws from the cursor
+    // as the TOP-LEFT corner, so X is computed from glyph count.
+    void drawSmall(const char *text, int y, char align = 'C') {
+        _oled->setFont(nullptr);
+        _oled->setTextSize(1);
+        int textW = (int)strlen(text) * 6;
+        int x;
+        if      (align == 'L') x = 0;
+        else if (align == 'R') x = OLED_W - textW;
+        else                   x = (OLED_W - textW) / 2;
         if (x < 0) x = 0;
         _oled->setCursor(x, y);
         _oled->print(text);
+    }
+
+    // Draw text horizontally centred using a GFX custom (proportional) font.
+    // `areaY`  : top of the vertical area to centre within (pixels from top of panel).
+    // `areaH`  : height of that area in pixels.
+    // The cursor is placed at the baseline so the bounding box is vertically centred
+    // within [areaY, areaY+areaH). After drawing, restores the default font + size 1.
+    void drawLarge(const char *text, int areaY, int areaH, const GFXfont *font) {
+        _oled->setFont(font);
+        int16_t bx, by; uint16_t bw, bh;
+        _oled->getTextBounds(text, 0, 0, &bx, &by, &bw, &bh);
+        // Horizontal: centre the bounding box.
+        int x = (OLED_W - (int)bw) / 2 - bx;
+        if (x < 0) x = 0;
+        // Vertical: centre the bounding box within the area.
+        // by is negative (distance from baseline up to the top of the bounding box).
+        int centreY = areaY + (areaH - (int)bh) / 2;
+        if (centreY < areaY) centreY = areaY;
+        int y = centreY - by;   // cursor y = top of box - by (by is negative)
+        _oled->setCursor(x, y);
+        _oled->print(text);
+        _oled->setFont(nullptr);
+        _oled->setTextSize(1);
     }
 
     // Build the bottom-line string for port mode: "deviceName  HH:MM:SS".
@@ -577,12 +711,12 @@ private:
     // Core renderer. Two layouts:
     //
     // Port mode (effectiveClock=false):
-    //   Top ~24px: antenna label, auto-sized 3→2→1
-    //   Bottom 8px: "deviceName  HH:MM:SS", size 1, scrolled if too wide
+    //   Top 24px: antenna label, smooth font cascade 12pt→9pt→default size 2→1
+    //   Bottom 8px: "deviceName  HH:MM:SS", default size 1, scrolled if too wide
     //
     // Clock mode (effectiveClock=true, timeStr non-empty):
-    //   Top 16px: "HH:MM:SS", size 2, centred
-    //   Bottom 8px: "antLabel  deviceName", size 1, centred (truncated if needed)
+    //   Top 24px: "HH:MM", FreeSansBold12pt7b, centred
+    //   Bottom 8px: "antLabel  deviceName", default size 1, centred (scrolled if needed)
     //   Falls back to port mode if timeStr is empty (NTP not synced).
     void _drawStatusImpl(const String &label, const String &deviceName,
                          const String &timeStr, bool effectiveClock, int scrollOff) {
@@ -590,21 +724,19 @@ private:
         _oled->clearDisplay();
 
         const int urlH = 8;
-        const int urlY = OLED_H - urlH;   // y=24
+        const int urlY = OLED_H - urlH;   // y=24 — bottom row for small status text
 
         if (effectiveClock && timeStr.length()) {
             // --- Clock-prominent layout ---
-            // Show HH:MM only (no seconds) — solid colon, no skip.
-            // timeStr is "HH:MM:SS"; take chars 0..4.
+            // Show HH:MM only (no seconds). timeStr is "HH:MM:SS"; take chars 0..4.
             String hhmm = timeStr.length() >= 5 ? timeStr.substring(0, 5) : timeStr;
 
-            // Top: time at size 2 (16px tall), centred vertically in top 24px.
-            int timeY = (urlY - 16) / 2;
-            if (timeY < 0) timeY = 0;
-            drawTextCentered(hhmm.c_str(), timeY, 2);
+            // Top 24px: time in smooth font, vertically centred.
+            drawLarge(hhmm.c_str(), 0, urlY, &FreeSansBold12pt7b);
 
-            // Bottom: "antLabel  deviceName", size 1, scrolled if too wide.
+            // Bottom 8px: "antLabel  deviceName", default size 1, scrolled if too wide.
             String bottom = _clockBottomLine(label, deviceName);
+            _oled->setFont(nullptr);
             _oled->setTextSize(1);
             int bw = (int)bottom.length() * 6;
             int bx = (bw <= OLED_W) ? (OLED_W - bw) / 2 : -scrollOff;
@@ -612,20 +744,12 @@ private:
             _oled->print(bottom.c_str());
         } else {
             // --- Port-prominent layout ---
-            // Top: antenna label, auto-sized to fill the top area.
-            uint8_t size = 3;
-            for (; size > 1; size--) {
-                int w = (int)label.length() * 6 * size;
-                int h = 8 * size;
-                if (w <= OLED_W && h <= urlY) break;
-            }
-            int labelH = 8 * size;
-            int labelY = (urlY - labelH) / 2;
-            if (labelY < 0) labelY = 0;
-            drawTextCentered(label.c_str(), labelY, size);
+            // Top 24px: antenna label, smooth font cascade 12pt→9pt→default 2→1.
+            _drawLabelAutoSize(label.c_str(), 0, urlY);
 
-            // Bottom: "deviceName  HH:MM:SS", size 1, scrolled if too wide.
+            // Bottom 8px: "deviceName  HH:MM:SS", default size 1, scrolled if too wide.
             String bottom = _bottomLine(deviceName, timeStr);
+            _oled->setFont(nullptr);
             _oled->setTextSize(1);
             int bw = (int)bottom.length() * 6;
             int bx = (bw <= OLED_W) ? (OLED_W - bw) / 2 : -scrollOff;
@@ -645,6 +769,55 @@ private:
         }
 
         _oled->display();
+    }
+
+    // Draw a label string into a vertical area [areaY, areaY+areaH) using the largest
+    // font that fits the panel width. Cascade:
+    //   FreeSansBold12pt7b → FreeSansBold9pt7b → default size 2 → default size 1
+    // Leaves the font/size set to default size 1 on exit.
+    void _drawLabelAutoSize(const char *text, int areaY, int areaH) {
+        struct FontOption { const GFXfont *font; uint8_t defSize; };
+        FontOption opts[] = {
+            { &FreeSansBold12pt7b, 0 },
+            { &FreeSansBold9pt7b,  0 },
+            { nullptr,             2 },
+            { nullptr,             1 },
+        };
+        int16_t bx, by; uint16_t bw, bh;
+        for (auto &opt : opts) {
+            int textW, textH;
+            if (opt.font) {
+                _oled->setFont(opt.font);
+                _oled->getTextBounds(text, 0, 0, &bx, &by, &bw, &bh);
+                textW = (int)bw;
+                textH = (int)bh;
+            } else {
+                _oled->setFont(nullptr);
+                _oled->setTextSize(opt.defSize);
+                textW = (int)strlen(text) * 6 * opt.defSize;
+                textH = 8 * opt.defSize;
+            }
+            if (textW <= OLED_W && textH <= areaH) {
+                int x, y;
+                if (opt.font) {
+                    x = (OLED_W - textW) / 2 - bx;
+                    if (x < 0) x = 0;
+                    int centreY = areaY + (areaH - textH) / 2;
+                    if (centreY < areaY) centreY = areaY;
+                    y = centreY - by;
+                } else {
+                    x = (OLED_W - textW) / 2;
+                    if (x < 0) x = 0;
+                    y = areaY + (areaH - textH) / 2;
+                    if (y < areaY) y = areaY;
+                }
+                _oled->setCursor(x, y);
+                _oled->print(text);
+                break;
+            }
+        }
+        _oled->setFont(nullptr);
+        _oled->setTextSize(1);
     }
 
     Adafruit_SSD1306 *_oled = nullptr;
