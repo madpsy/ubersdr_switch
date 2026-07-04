@@ -332,6 +332,9 @@ static String apiStatusJson() {
     j += (g_mqtt.enabled() ? F("true") : F("false"));
     j += F(",\"mqtt_connected\":");
     j += (g_mqtt.connected() ? F("true") : F("false"));
+    j += F(",\"mqtt_prefix\":\"");
+    j += g_mqtt.prefix();
+    j += F("\"");
     j += F(",\"locked\":");
     j += (g_locked ? F("true") : F("false"));
     j += F(",\"scheduler_enabled\":");

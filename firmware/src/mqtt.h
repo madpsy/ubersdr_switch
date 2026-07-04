@@ -6,7 +6,7 @@
 // TLS is intentionally NOT supported (heap/complexity cost on the ESP8266); the design
 // keeps the client type local so TLS could be added later behind a flag.
 //
-// Topics (prefix defaults to "ubersdr/<hostname>" when the config prefix is empty):
+// Topics (prefix defaults to "uberant/<hostname>" when the config prefix is empty):
 //   PUBLISH  <prefix>/availability   "online" / "offline"   (retained, LWT)
 //   PUBLISH  <prefix>/status         full status JSON       (retained if cfg.retain)
 //   PUBLISH  <prefix>/antenna        bare position number   (retained if cfg.retain)
@@ -67,9 +67,9 @@ public:
         _lockFn       = lockFn;
         _lockToggleFn = lockToggleFn;
 
-        // Resolve the topic prefix: explicit config, else "ubersdr/<hostname>".
+        // Resolve the topic prefix: explicit config, else "uberant/<hostname>".
         _prefix = strlen(cfg.prefix) ? String(cfg.prefix)
-                                     : (String("ubersdr/") + hostname);
+                                     : (String("uberant/") + hostname);
         while (_prefix.endsWith("/")) _prefix.remove(_prefix.length() - 1);
 
         _client.setClient(_net);
@@ -85,6 +85,8 @@ public:
 
     bool enabled()   const { return _cfg.enabled && strlen(_cfg.host) > 0; }
     bool connected()       { return _client.connected(); }
+    // Effective topic prefix (resolved at begin() time).
+    const String &prefix() const { return _prefix; }
 
     // Call frequently from loop(): services MQTT, reconnects with exponential backoff,
     // and republishes /info once a minute while connected.

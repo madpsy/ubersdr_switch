@@ -311,12 +311,12 @@ When command topics are enabled, the device subscribes to:
 
 ```bash
 # Publish a command (mosquitto_pub example)
-mosquitto_pub -h 192.168.1.10 -t "ubersdr/ESP-45CA21/set" -m "up"
-mosquitto_pub -h 192.168.1.10 -t "ubersdr/ESP-45CA21/set" -m "3"
-mosquitto_pub -h 192.168.1.10 -t "ubersdr/ESP-45CA21/max/set" -m "5"
-mosquitto_pub -h 192.168.1.10 -t "ubersdr/ESP-45CA21/name/set" \
+mosquitto_pub -h 192.168.1.10 -t "uberant/ESP-45CA21/set" -m "up"
+mosquitto_pub -h 192.168.1.10 -t "uberant/ESP-45CA21/set" -m "3"
+mosquitto_pub -h 192.168.1.10 -t "uberant/ESP-45CA21/max/set" -m "5"
+mosquitto_pub -h 192.168.1.10 -t "uberant/ESP-45CA21/name/set" \
   -m '{"position":3,"name":"80m Vertical"}'
-mosquitto_pub -h 192.168.1.10 -t "ubersdr/ESP-45CA21/display" \
+mosquitto_pub -h 192.168.1.10 -t "uberant/ESP-45CA21/display" \
   -m '{"text":"TX ON","duration":3,"align":"center"}'
 ```
 

@@ -113,7 +113,7 @@ static const uint8_t DEVICE_NAME_MAXLEN = 24;
 static const char    DEVICE_NAME_DEFAULT[] = "UberANT";
 
 // Persisted MQTT configuration (stored in the settings EEPROM region, so it survives a
-// filesystem reflash). `prefix` empty => default "ubersdr/<hostname>" is used at runtime.
+// filesystem reflash). `prefix` empty => default "uberant/<hostname>" is used at runtime.
 struct MqttConfig {
     bool     enabled  = false;
     char     host[MQTT_HOST_MAXLEN + 1]     = {0};

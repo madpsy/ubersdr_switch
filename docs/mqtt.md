@@ -42,7 +42,7 @@ curl -X POST -H "Content-Type: application/json" \
 | `port` | number | `1883` | Broker TCP port |
 | `user` | string | `""` | Username (leave blank for anonymous) |
 | `pass` | string | `""` | Password (write-only; returned as `"***"` if set) |
-| `prefix` | string | `""` | Topic prefix. Empty → `ubersdr/<hostname>` |
+| `prefix` | string | `""` | Topic prefix. Empty → `uberant/<hostname>` |
 | `retain` | bool | `true` | Publish state/availability messages as retained |
 | `commands` | bool | `false` | Subscribe to command topics (see below) |
 
@@ -53,8 +53,8 @@ without a reboot.
 
 ## Topics
 
-All topics share a common prefix. The default prefix is `ubersdr/<hostname>` (e.g.
-`ubersdr/ESP-45CA21`). A custom prefix can be set in the config.
+All topics share a common prefix. The default prefix is `uberant/<hostname>` (e.g.
+`uberant/ESP-45CA21`). A custom prefix can be set in the config.
 
 ### Published topics
 
@@ -169,7 +169,7 @@ Enable with `"commands": true`. The device subscribes to these topics on connect
 
 ```bash
 BROKER=192.168.1.10
-PREFIX=ubersdr/ESP-45CA21
+PREFIX=uberant/ESP-45CA21
 
 # Select ANT3
 mosquitto_pub -h $BROKER -t "$PREFIX/set" -m "3"
@@ -200,16 +200,16 @@ mosquitto_pub -h $BROKER -t "$PREFIX/restart" -m "1"
 mqtt:
   sensor:
     - name: "Antenna Switch Position"
-      state_topic: "ubersdr/ESP-45CA21/antenna"
-      availability_topic: "ubersdr/ESP-45CA21/availability"
+      state_topic: "uberant/ESP-45CA21/antenna"
+      availability_topic: "uberant/ESP-45CA21/availability"
       payload_available: "online"
       payload_not_available: "offline"
 
   select:
     - name: "Antenna Switch"
-      state_topic: "ubersdr/ESP-45CA21/antenna"
-      command_topic: "ubersdr/ESP-45CA21/set"
-      availability_topic: "ubersdr/ESP-45CA21/availability"
+      state_topic: "uberant/ESP-45CA21/antenna"
+      command_topic: "uberant/ESP-45CA21/set"
+      availability_topic: "uberant/ESP-45CA21/availability"
       payload_available: "online"
       payload_not_available: "offline"
       options:

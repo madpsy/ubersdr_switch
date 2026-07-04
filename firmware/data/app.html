@@ -543,7 +543,7 @@
      -d '{"position":2}' "http://<span class="curlH">this-device</span>/api/antenna"</span></pre>
 
     <h4>MQTT commands <small style="font-weight:normal;color:var(--muted)">(requires <code>commands: true</code> in Settings → MQTT)</small></h4>
-    <p class="lead">Default prefix: <code>ubersdr/&lt;hostname&gt;</code>. Override in Settings.</p>
+    <p class="lead">Default prefix: <code>uberant/&lt;hostname&gt;</code>. Override in Settings.</p>
     <table class="ep">
       <tr><th>Topic</th><th>Payload</th><th>Effect</th></tr>
       <tr><td><code>&lt;prefix&gt;/set</code></td><td><code>0</code>–<code>7</code> | <code>up</code> | <code>down</code> | <code>ground</code></td><td>Select antenna / step</td></tr>
@@ -554,13 +554,13 @@
       <tr><td><code>&lt;prefix&gt;/restart</code></td><td>any</td><td>Reboot the device</td></tr>
     </table>
     <pre id="mqttCmdPre"><span class="m"># mosquitto_pub examples</span>
-<span class="c">mosquitto_pub -h <span id="mqttCmdHost">…</span> -t "<span id="mqttCmdPfx">ubersdr/ESP-XXXXXX</span>/set" -m "3"</span>
-<span class="c">mosquitto_pub -h <span id="mqttCmdHost2">…</span> -t "<span id="mqttCmdPfx2">ubersdr/ESP-XXXXXX</span>/set" -m "up"</span>
-<span class="c">mosquitto_pub -h <span id="mqttCmdHost3">…</span> -t "<span id="mqttCmdPfx3">ubersdr/ESP-XXXXXX</span>/set" -m "ground"</span>
-<span class="c">mosquitto_pub -h <span id="mqttCmdHost4">…</span> -t "<span id="mqttCmdPfx4">ubersdr/ESP-XXXXXX</span>/max/set" -m "5"</span>
-<span class="c">mosquitto_pub -h <span id="mqttCmdHost5">…</span> -t "<span id="mqttCmdPfx5">ubersdr/ESP-XXXXXX</span>/name/set" \
+<span class="c">mosquitto_pub -h <span id="mqttCmdHost">…</span> -t "<span id="mqttCmdPfx">uberant/ESP-XXXXXX</span>/set" -m "3"</span>
+<span class="c">mosquitto_pub -h <span id="mqttCmdHost2">…</span> -t "<span id="mqttCmdPfx2">uberant/ESP-XXXXXX</span>/set" -m "up"</span>
+<span class="c">mosquitto_pub -h <span id="mqttCmdHost3">…</span> -t "<span id="mqttCmdPfx3">uberant/ESP-XXXXXX</span>/set" -m "ground"</span>
+<span class="c">mosquitto_pub -h <span id="mqttCmdHost4">…</span> -t "<span id="mqttCmdPfx4">uberant/ESP-XXXXXX</span>/max/set" -m "5"</span>
+<span class="c">mosquitto_pub -h <span id="mqttCmdHost5">…</span> -t "<span id="mqttCmdPfx5">uberant/ESP-XXXXXX</span>/name/set" \
   -m '{"position":3,"name":"80m Vertical"}'</span>
-<span class="c">mosquitto_pub -h <span id="mqttCmdHost6">…</span> -t "<span id="mqttCmdPfx6">ubersdr/ESP-XXXXXX</span>/display" \
+<span class="c">mosquitto_pub -h <span id="mqttCmdHost6">…</span> -t "<span id="mqttCmdPfx6">uberant/ESP-XXXXXX</span>/display" \
   -m '{"text":"ANT 3\n80m Vert","duration":4,"align":"center"}'</span></pre>
 
     <h4>JavaScript</h4>
@@ -682,7 +682,7 @@
     <label>Password <small style="display:inline;color:var(--muted)">(optional)</small></label>
     <input type="text" id="mqttPass" maxlength="32" placeholder="leave blank if not required" autocomplete="off">
 
-    <label>Topic prefix <small style="display:inline;color:var(--muted)">(blank = ubersdr/&lt;hostname&gt;)</small></label>
+    <label>Topic prefix <small style="display:inline;color:var(--muted)">(blank = uberant/&lt;hostname&gt;)</small></label>
     <input type="text" id="mqttPrefix" maxlength="40" placeholder="e.g. home/shack/antenna" autocomplete="off">
 
     <h4 style="margin-top:22px">Device</h4>
@@ -982,7 +982,7 @@
       badge.style.display = "";
       if(s.mqtt_connected){
         dot.className = "dot live"; dot.style.background = "";
-        lbl.textContent = "MQTT"; lbl.style.color = "";
+        lbl.textContent = "MQTT " + (s.mqtt_prefix || ""); lbl.style.color = "";
       } else {
         dot.className = "dot"; dot.style.background = "var(--warn)";
         lbl.textContent = "MQTT offline"; lbl.style.color = "var(--warn)";
@@ -1218,7 +1218,7 @@
     api("/api/mqtt").then(function(c){
       var broker = c.host || "…";
       var hostnameRaw = (document.getElementById("curHost").textContent || "ESP-XXXXXX").replace(/\.local$/, "");
-      var prefix = (c.prefix && c.prefix.length) ? c.prefix : ("ubersdr/" + hostnameRaw);
+      var prefix = (c.prefix && c.prefix.length) ? c.prefix : ("uberant/" + hostnameRaw);
       [1,2,3,4,5,6].forEach(function(i){
         var hEl = document.getElementById("mqttCmdHost" + (i===1?"":i));
         var pEl = document.getElementById("mqttCmdPfx"  + (i===1?"":i));
