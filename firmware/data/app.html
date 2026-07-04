@@ -443,7 +443,7 @@
       <tr><td>GET</td><td><code>/api/events</code></td><td>last 25 antenna-change events (JSON array)</td></tr>
       <tr><td>POST</td><td><code>/api/display</code></td><td>show custom OLED message <code>{"text":"…","duration":N,"align":"center"}</code></td></tr>
       <tr><td>GET/POST</td><td><code>/api/display/blank</code></td><td>get / set screen-saver config <code>{"enabled":bool,"timeout":N}</code></td></tr>
-      <tr><td>GET/POST</td><td><code>/api/display/mode</code></td><td>get / set OLED mode <code>{"mode":"port"}</code> or <code>{"mode":"clock"}</code></td></tr>
+      <tr><td>GET/POST</td><td><code>/api/display/mode</code></td><td>get / set OLED mode <code>{"mode":"port"}</code>, <code>{"mode":"clock"}</code> or <code>{"mode":"cycle"}</code></td></tr>
       <tr><td>GET/POST</td><td><code>/api/default-port</code></td><td>get / set startup default port <code>{"default_port":N}</code> (0=GROUND, 1–7=ANT)</td></tr>
       <tr><td>GET/POST</td><td><code>/api/startup-port</code></td><td>get / set startup port behaviour <code>{"mode":"default"}</code> or <code>{"mode":"last"}</code></td></tr>
       <tr><td>GET</td><td><code>/api/lock</code></td><td>read lock state <code>{"locked":bool}</code></td></tr>
@@ -476,10 +476,10 @@
 <span class="c">curl -X POST "http://<span class="curlH">this-device</span>/api/name?position=3&amp;name=80m%20Vertical"</span>
 <span class="c">curl -X DELETE "http://<span class="curlH">this-device</span>/api/name?position=3"</span>
 
-<span class="m"># OLED display mode (port=antenna prominent, clock=time prominent)</span>
+<span class="m"># OLED display mode (port=antenna prominent, clock=time prominent, cycle=alternates every 5s)</span>
 <span class="c">curl "http://<span class="curlH">this-device</span>/api/display/mode"</span>
 <span class="c">curl -X POST -H "Content-Type: application/json" \
-     -d '{"mode":"clock"}' "http://<span class="curlH">this-device</span>/api/display/mode"</span>
+     -d '{"mode":"cycle"}' "http://<span class="curlH">this-device</span>/api/display/mode"</span>
 
 <span class="m"># schedule: read all entries</span>
 <span class="c">curl "http://<span class="curlH">this-device</span>/api/schedule"</span>
@@ -711,9 +711,11 @@
     <select id="displayMode">
       <option value="port">Port / antenna (default)</option>
       <option value="clock">Clock / time</option>
+      <option value="cycle">Cycle (alternates every 5 s)</option>
     </select>
     <p style="font-size:11px;color:var(--muted);margin:4px 0 0">
       In clock mode the time is shown large; the antenna label is small underneath.
+      Cycle mode alternates between port and clock views every 5 seconds.
       When the port changes, the antenna label is shown large for 2 seconds regardless of this setting.
     </p>
     <div class="toggle-row" style="margin-top:14px">

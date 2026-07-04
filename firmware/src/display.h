@@ -8,11 +8,14 @@
 //   * ERASE:    "press ERASE for erase stored information" / "ERASE" / "hold the button"
 //               with a countdown, and the AP-mode SSID/URL screen.
 //
-// Two display modes (selectable in Settings → Display):
+// Three display modes (selectable in Settings → Display):
 //   Port mode  (default): antenna label is the large text; device name + clock is small.
 //   Clock mode:           time is the large text; antenna label + device name is small.
+//   Cycle mode:           alternates between Port and Clock every CYCLE_INTERVAL_MS (5 s).
+//                         A custom message via /api/display pauses the cycle for its
+//                         duration; the cycle resumes (from the same phase) afterwards.
 //
-// In both modes, when the antenna position changes, the display temporarily switches to
+// In all modes, when the antenna position changes, the display temporarily switches to
 // Port layout for PORT_CHANGE_SHOW_MS (2 s) so the user sees clear confirmation of the
 // switch, then reverts to the configured mode.
 //
@@ -45,6 +48,9 @@
 // How long (ms) to show the port-prominent layout after an antenna change, even in
 // clock mode, so the user gets clear visual confirmation of the switch.
 static const uint32_t PORT_CHANGE_SHOW_MS = 2000;
+
+// How long (ms) each sub-mode is shown in Cycle mode before switching.
+static const uint32_t CYCLE_INTERVAL_MS = 5000;
 
 class Display {
 public:
@@ -323,6 +329,8 @@ public:
     //
     // Port mode:  large antenna label on top; "deviceName  HH:MM:SS" on the bottom row.
     // Clock mode: large "HH:MM:SS" on top; "antLabel  deviceName" on the bottom row.
+    // Cycle mode: alternates between Port and Clock every CYCLE_INTERVAL_MS (5 s).
+    //             A custom message pauses the cycle; it resumes from the same phase.
     //
     // Port-change override: for PORT_CHANGE_SHOW_MS after notifyPortChange() is called,
     // always renders in port-prominent layout regardless of the configured mode, so the
@@ -330,12 +338,29 @@ public:
     //
     // `deviceName` and `timeStr` ("HH:MM:SS" local, or "" if NTP not synced) are
     // passed in from main.cpp so display.h stays dependency-free.
-    // `clockMode`: true = clock-prominent mode, false = port-prominent mode.
+    // `displayMode`: the current DisplayMode (Port / Clock / Cycle).
     // No-ops while a custom message is active or the display is blanked.
-    void tickStatus(const String &deviceName, const String &timeStr, bool clockMode) {
+    void tickStatus(const String &deviceName, const String &timeStr, DisplayMode displayMode) {
         if (!_oled) return;
         if (_blanked) return;
-        if (customActive()) return;
+
+        uint32_t now = millis();
+
+        // Determine whether a port-change override is active (forces Port layout for 2 s).
+        bool portOverrideActive = (_portChangedAt != 0 &&
+                                   (int32_t)(now - _portChangedAt) < (int32_t)PORT_CHANGE_SHOW_MS);
+
+        // Freeze the cycle timer whenever the display is "interrupted" by something that
+        // takes over the screen: a custom message OR a port-change override. This ensures
+        // the 5 s cycle doesn't silently consume time while the user is reading something
+        // else, so each phase always gets a full 5 s of uninterrupted display time.
+        if (displayMode == DisplayMode::Cycle && (customActive() || portOverrideActive)) {
+            _cycleStartMs = now - _cyclePhaseMs;
+        }
+
+        if (customActive()) {
+            return;
+        }
         // Custom message just expired.
         if (_customUntil) {
             _customUntil = 0;
@@ -344,29 +369,46 @@ public:
                 blankDisplay();
                 return;
             }
-            _redrawStatus(deviceName, timeStr, clockMode);
+            _redrawStatus(deviceName, timeStr, displayMode);
         }
 
-        uint32_t now = millis();
+        // --- Cycle mode: advance phase and detect sub-mode transitions ---
+        bool cycleJustFlipped = false;
+        if (displayMode == DisplayMode::Cycle) {
+            uint32_t elapsed = now - _cycleStartMs;
+            bool newPhase = (elapsed / CYCLE_INTERVAL_MS) & 1;  // 0=Port, 1=Clock
+            if (newPhase != _cyclePhase) {
+                _cyclePhase = newPhase;
+                cycleJustFlipped = true;
+                // Reset scroll state on phase flip so the new layout starts clean.
+                _scrollPx      = 0;
+                _lastScrollMs  = now;
+                _clockScrollPx = 0;
+                _clockScrollMs = now;
+            }
+            // Keep _cyclePhaseMs updated so freeze logic stays accurate.
+            _cyclePhaseMs = elapsed % CYCLE_INTERVAL_MS;
+        }
 
-        // Determine effective mode: port-change override takes priority.
-        bool portOverride = (_portChangedAt != 0 &&
-                             (int32_t)(now - _portChangedAt) < (int32_t)PORT_CHANGE_SHOW_MS);
-        bool effectiveClockMode = clockMode && !portOverride;
+        // Resolve the effective clock-mode flag from the display mode.
+        bool clockMode = _effectiveClockMode(displayMode);
+
+        // Port-change override suppresses clock layout (portOverrideActive already computed above).
+        bool effectiveClockMode = clockMode && !portOverrideActive;
 
         // Decide whether to redraw this tick.
-        bool redraw = false;
+        bool redraw = cycleJustFlipped;
 
         // Clock ticks every second (both modes show the time somewhere).
         if (timeStr.length()) {
             if ((int32_t)(now - _lastClockMs) >= 1000) {
-                    _lastClockMs = now;
-                    redraw = true;
-                }
+                _lastClockMs = now;
+                redraw = true;
+            }
         }
 
         // Port-change override expiry: redraw once when the 2s window closes.
-        if (_portChangedAt != 0 && !portOverride) {
+        if (_portChangedAt != 0 && !portOverrideActive) {
             _portChangedAt = 0;
             redraw = true;
         }
@@ -396,7 +438,7 @@ public:
         }
 
         if (!redraw) return;
-        _redrawStatus(deviceName, timeStr, clockMode);
+        _redrawStatus(deviceName, timeStr, displayMode);
     }
 
     // SET button: "MAX n".
@@ -493,16 +535,24 @@ private:
         return s;
     }
 
+    // Resolve the effective clock-mode boolean from a DisplayMode.
+    // In Cycle mode, _cyclePhase 0 = Port, 1 = Clock.
+    bool _effectiveClockMode(DisplayMode dm) const {
+        if (dm == DisplayMode::Clock) return true;
+        if (dm == DisplayMode::Cycle) return _cyclePhase != 0;
+        return false;
+    }
+
     // Redraw the status screen using stored _statusLabel and the supplied runtime
     // strings. Overload with no args uses empty strings (for lock-state redraws).
     void _redrawStatus() {
         _drawStatusImpl(_statusLabel, String(), String(), false, 0);
     }
-    void _redrawStatus(const String &deviceName, const String &timeStr, bool clockMode) {
+    void _redrawStatus(const String &deviceName, const String &timeStr, DisplayMode displayMode) {
         uint32_t now = millis();
         bool portOverride = (_portChangedAt != 0 &&
                              (int32_t)(now - _portChangedAt) < (int32_t)PORT_CHANGE_SHOW_MS);
-        bool effectiveClock = clockMode && !portOverride;
+        bool effectiveClock = _effectiveClockMode(displayMode) && !portOverride;
         int scrollOff = 0;
         if (effectiveClock) {
             String bottom = _clockBottomLine(_statusLabel, deviceName);
@@ -630,4 +680,13 @@ private:
 
     // Lock indicator.
     bool     _locked     = false;
+
+    // Cycle mode state.
+    // _cycleStartMs: millis() when the current cycle epoch began (reset on mode change).
+    // _cyclePhase:   0 = Port sub-mode, 1 = Clock sub-mode.
+    // _cyclePhaseMs: elapsed ms within the current CYCLE_INTERVAL_MS window; used to
+    //                freeze the timer while a custom message is displayed.
+    uint32_t _cycleStartMs  = 0;
+    bool     _cyclePhase    = false;   // false=Port, true=Clock
+    uint32_t _cyclePhaseMs  = 0;
 };

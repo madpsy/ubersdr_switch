@@ -895,28 +895,34 @@ static void setupStationPortal() {
     });
 
     // Display mode config.
-    // GET  /api/display/mode  -> {"mode":"port"|"clock"}
-    // POST /api/display/mode  {"mode":"port"|"clock"}
+    // GET  /api/display/mode  -> {"mode":"port"|"clock"|"cycle"}
+    // POST /api/display/mode  {"mode":"port"|"clock"|"cycle"}
     g_portal.on("/api/display/mode", HTTP_ANY, []() {
+        auto modeStr = [](DisplayMode dm) -> const __FlashStringHelper * {
+            if (dm == DisplayMode::Clock) return F("clock");
+            if (dm == DisplayMode::Cycle) return F("cycle");
+            return F("port");
+        };
         if (g_portal.method() == HTTP_GET) {
             apiCors();
-            bool isClock = (g_settings.displayMode() == DisplayMode::Clock);
             g_portal.send(200, "application/json",
-                String(F("{\"mode\":\"")) + (isClock ? F("clock") : F("port")) + F("\"}"));
+                String(F("{\"mode\":\"")) + modeStr(g_settings.displayMode()) + F("\"}"));
             return;
         }
         // POST: read "mode" string param.
         String sv;
         if (apiStrParam("mode", sv)) {
             sv.toLowerCase();
-            DisplayMode dm = (sv == "clock") ? DisplayMode::Clock : DisplayMode::Port;
+            DisplayMode dm;
+            if      (sv == "clock") dm = DisplayMode::Clock;
+            else if (sv == "cycle") dm = DisplayMode::Cycle;
+            else                    dm = DisplayMode::Port;
             g_settings.setDisplayMode(dm);
             LOGF("display mode set to %s", sv.c_str());
         }
         apiCors();
-        bool isClock = (g_settings.displayMode() == DisplayMode::Clock);
         g_portal.send(200, "application/json",
-            String(F("{\"mode\":\"")) + (isClock ? F("clock") : F("port")) + F("\"}"));
+            String(F("{\"mode\":\"")) + modeStr(g_settings.displayMode()) + F("\"}"));
     });
 
     // Display blank (screen-saver) config.
@@ -1761,7 +1767,7 @@ void loop() {
                     if (iso.length() >= 19) timeStr = iso.substring(11, 19);
                 }
                 g_oled.tickStatus(g_settings.deviceName(), timeStr,
-                                  g_settings.displayMode() == DisplayMode::Clock);
+                                  g_settings.displayMode());
             }
 
             // Schedule tick: only when NTP is synced (we need a reliable local time).

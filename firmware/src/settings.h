@@ -45,6 +45,7 @@ struct DisplayBlankConfig {
 enum class DisplayMode : uint8_t {
     Port  = 0,   // antenna label is the large text (default)
     Clock = 1,   // time is the large text
+    Cycle = 2,   // alternates between Port and Clock every 5 seconds
 };
 
 class Settings {
