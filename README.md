@@ -6,6 +6,14 @@ WiFi-controlled antenna switch firmware for the **MS-S5 / ANTENI.NET "ANTENNAS w
 
 ## Quick install (flash prebuilt firmware)
 
+### Physical setup
+
+> ⚠️ **Disconnect the 12 V power supply from the antenna switch before opening it.**
+
+1. **Remove the front face plate** from the antenna switch to expose the controller board inside
+2. **Plug a USB cable** into the micro-USB port on the side of the ESP8266 controller
+3. **Connect the other end** to a Linux PC or an UberSDR instance
+
 > **Requirements:** a USB cable, Python 3, and `esptool` (or PlatformIO).
 > No compiler needed — prebuilt binaries are included in [`firmware/prebuilt/`](firmware/prebuilt/).
 
@@ -27,7 +35,7 @@ After flashing, the device reboots and either:
 - Joins your WiFi network (if credentials were provided) and shows its IP on the OLED
 - Opens a captive portal at **`http://192.168.4.1`** (connect to `AutoConnectAP` WiFi) to configure WiFi
 
-Once connected, open **`http://ESP-XXXXXX.local`** (or the IP shown on the OLED) in a browser.
+Once connected, open **`http://uberant.local`** (or the IP shown on the OLED) in a browser.
 
 ### First-time WiFi setup (no credentials baked in)
 
@@ -147,7 +155,7 @@ The 74HCT138 guarantees exactly one relay — hence one antenna — is connected
 | Board | Heltec WiFi Kit 8 (HTIT-W8266), ESP8266 |
 | Display | 0.91" 128×32 SSD1306 OLED, I²C on GPIO4/GPIO5, reset on GPIO16 |
 | WiFi setup | tzapu WiFiManager — AP `AutoConnectAP` @ `http://192.168.4.1` |
-| Station access | `http://ESP-XXXXXX.local` (mDNS), web UI + OTA update |
+| Station access | `http://uberant.local` (mDNS, derived from device name), web UI + OTA update |
 | REST API | JSON `/api/*` API — see [`docs/rest-api.md`](docs/rest-api.md) |
 
 ---

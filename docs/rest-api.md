@@ -6,7 +6,7 @@ designed for scripting an SDR/receiver setup (e.g. selecting the antenna feeding
 KiwiSDR) from a browser, `curl`, or any HTTP client.
 
 - **Base URL:** `http://<device>/` — where `<device>` is the mDNS name
-  (`http://ESP-XXXXXX.local`), the DHCP IP, or `192.168.4.1` in AP/config mode.
+  (`http://uberant.local` by default, or `http://<device-name>.local` if customised), the DHCP IP, or `192.168.4.1` in AP/config mode.
 - **Web UI:** the modern dark UI at `/` (the default page) drives this API and includes
   a **`?` button** with an inline API reference. The classic stock page is at `/old`.
 - **Content type:** every response is `application/json`.
@@ -29,8 +29,8 @@ KiwiSDR) from a browser, `curl`, or any HTTP client.
 | `max` | Highest selectable antenna (the SET/`MAX` value, `0`…`7`) |
 | `count` | Same as `max` — number of selectable antennas above GROUND |
 | `url` | The device's own web address (`http://<ip>`), or empty until an IP is assigned |
-| `hostname` | mDNS hostname (`ESP-XXXXXX`) |
-| `device_name` | Configurable switch name (default `"UberSDR"`) — shown on OLED splash and web UI header |
+| `hostname` | mDNS hostname (derived from device name, e.g. `uberant`; falls back to `ESP-XXXXXX` if unset) |
+| `device_name` | Configurable switch name (default `"UberANT"`) — shown on OLED splash and web UI header; also determines the `.local` hostname |
 | `mqtt_enabled` | `true` if MQTT is enabled in config |
 | `mqtt_connected` | `true` if currently connected to the MQTT broker |
 | `locked` | `true` if the antenna switch is locked (changes blocked) |

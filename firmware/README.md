@@ -30,7 +30,7 @@ The original firmware can always be restored from the included flash image with
 | Exact served page: `Web ANTENNAS switch`, Up/Dn buttons, `ANTENNA:` label, `Anteni.net Ltd.` | ✅ [`data/index.html`](data/index.html) + [`data/style.css`](data/style.css) | [`../docs/web-interface.md`](../docs/web-interface.md) |
 | Verbatim headers `HTTP/1.1 200 OK` / `Content-type:text/html` / `Connection: close` | ✅ | [`../docs/web-interface.md`](../docs/web-interface.md) §1.2 |
 | WiFiManager captive portal: SoftAP `AutoConnectAP` @ `http://192.168.4.1` | ✅ | [`../docs/wifi-ap-config.md`](../docs/wifi-ap-config.md) |
-| Station mDNS `ESP-XXXXXX.local` (derived from the MAC, like `ESP-45CA21`) | ✅ | [`../docs/wifi-ap-config.md`](../docs/wifi-ap-config.md) |
+| Station mDNS `uberant.local` (derived from device name; falls back to `ESP-XXXXXX` if unset) | ✅ | [`../docs/wifi-ap-config.md`](../docs/wifi-ap-config.md) |
 | `/info`, `/erase`, `/restart`, OTA `/update` → POST `/u` | ✅ | [`../docs/web-interface.md`](../docs/web-interface.md) §2 |
 | Boot gestures: hold ERASE to wipe WiFi, hold UP to force config portal | ✅ | [`../docs/manual-setup.md`](../docs/manual-setup.md) |
 
@@ -143,7 +143,7 @@ filesystem is missing, the web pages show a "Filesystem image not uploaded" noti
 ### OTA (over WiFi, no cable)
 
 Once the device is on your network, the firmware can be updated over WiFi at
-`http://ESP-XXXXXX.local/update` (POST to `/u`), matching the stock OTA flow. Build
+`http://uberant.local/update` (POST to `/u`), matching the stock OTA flow. Build
 `pio run` produces `.pio/build/esp12e/firmware.bin` to upload there.
 
 ---
@@ -189,7 +189,7 @@ and offers to update it), or use the portal/`/erase`.
    **`http://192.168.4.1`** — the OLED shows `ssid: AutoConnectAP`.
 2. Join `AutoConnectAP`, open `http://192.168.4.1`, choose **Configure WiFi**, enter
    your SSID/password, and **Save**. The device reboots and connects as a station.
-3. After connecting it advertises **`http://ESP-XXXXXX.local`** (and its DHCP IP),
+3. After connecting it advertises **`http://uberant.local`** (and its DHCP IP),
    shown on the OLED, serving the antenna control page.
 
 To wipe WiFi credentials: visit `/erase`, or **hold the ERASE button** during the
@@ -213,7 +213,7 @@ The firmware always keeps the last ~40 log lines in RAM and serves them, plus li
 runtime state, at:
 
 ```
-http://ESP-XXXXXX.local/debug      (or http://<device-IP>/debug)
+http://uberant.local/debug      (or http://<device-IP>/debug)
 ```
 
 This shows WiFi status, SSID, IP, antenna position/max, free heap, uptime, reset
