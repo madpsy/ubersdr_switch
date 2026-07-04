@@ -102,9 +102,11 @@ public:
             _tzOffsetMinutes = (int16_t)tzRaw;
         }
         p += 2;
-        // Display mode (1 byte: 0=port, 1=clock). 0xFF = uninitialised → default port.
+        // Display mode (1 byte: 0=port, 1=clock, 2=cycle). 0xFF = uninitialised → default port.
         uint8_t dm = EEPROM.read(p);
-        _displayMode = (dm == (uint8_t)DisplayMode::Clock) ? DisplayMode::Clock : DisplayMode::Port;
+        if      (dm == (uint8_t)DisplayMode::Clock) _displayMode = DisplayMode::Clock;
+        else if (dm == (uint8_t)DisplayMode::Cycle) _displayMode = DisplayMode::Cycle;
+        else                                         _displayMode = DisplayMode::Port;
         p += 1;
         // Default port (1 byte: 0=GROUND, 1-7=ANT, 0xFF=unset→GROUND).
         uint8_t dp = EEPROM.read(p);
