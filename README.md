@@ -2,6 +2,19 @@
 
 WiFi-controlled antenna switch firmware for the **MS-S5 / ANTENI.NET "ANTENNAS webSWITCH"** — an ESP8266-based 5-way antenna switch compatible with KiwiSDR and other SDR setups.
 
+**Features:**
+- 🌐 **Modern dark web UI** (PWA, installable on mobile) with antenna grid, schedule, settings, log and help pages
+- 📡 **REST JSON API** for scripting and SDR automation (`/api/status`, `/api/antenna`, etc.)
+- 📨 **MQTT support** — publishes state/events, accepts commands; Home Assistant-friendly
+- 🕐 **Time-based scheduler** — switch antennas automatically by day/time (requires NTP)
+- 🔒 **Lock mode** — prevent accidental antenna changes via button hold or API/MQTT
+- 🏷️ **Custom antenna names** — label each port; names persist across firmware updates
+- 🖥️ **OLED display** — shows current antenna, IP address, clock, and lock indicator
+- ⚙️ **Configurable startup port** — boot to a fixed default or restore the last-used port
+- 🔄 **OTA firmware updates** via the web UI (`/update`)
+- 🔘 **Physical buttons** — UP/DOWN step antenna, SET bumps max, ERASE wipes config
+- 📶 **WiFi pre-provisioning** — bake in credentials at flash time; captive portal fallback
+
 ---
 
 ## Screenshots
