@@ -7,8 +7,18 @@ and committed here so users can flash the firmware **without needing PlatformIO 
 |------|-------------|
 | `firmware.bin` | Compiled ESP8266 firmware (flashed to the code partition) |
 | `littlefs.bin` | LittleFS web-asset image (flashed to the data partition — contains the web UI, icons, manifest, etc.) |
+| `manifest.json` | ESP Web Tools manifest — used by the browser-based web flasher |
 
-## Flashing
+## Web flasher (Chrome / Edge — no software required)
+
+The easiest way to flash is the browser-based web flasher in [`../../docs/flash/`](../../docs/flash/).
+Open `docs/flash/index.html` via a local HTTPS server or GitHub Pages, plug in the device, and click
+**Install** — no drivers, Python, or PlatformIO needed.
+
+> **Note:** Web Serial requires HTTPS. The page cannot be opened directly from disk (`file://`).
+> Serve it locally with e.g. `python3 -m http.server` behind a reverse proxy, or deploy to GitHub Pages.
+
+## Command-line flashing
 
 ```bash
 # From the repo root — auto-detects port, prompts for WiFi credentials:
@@ -27,10 +37,9 @@ After making source changes, rebuild and copy:
 
 ```bash
 cd firmware
-./build.sh build   # -> .pio/build/esp12e/firmware.bin
-./build.sh fs      # -> .pio/build/esp12e/littlefs.bin
-cp .pio/build/esp12e/firmware.bin  prebuilt/firmware.bin
-cp .pio/build/esp12e/littlefs.bin  prebuilt/littlefs.bin
+./build.sh build   # -> .pio/build/esp12e/firmware.bin + littlefs.bin
+                   #    also copies both to prebuilt/ AND docs/flash/
 ```
 
-Then commit both files.
+Then commit all changed files (`prebuilt/firmware.bin`, `prebuilt/littlefs.bin`,
+`docs/flash/firmware.bin`, `docs/flash/littlefs.bin`).

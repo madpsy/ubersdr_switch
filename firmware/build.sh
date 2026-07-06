@@ -75,6 +75,16 @@ copy_prebuilt() {
     echo "==> Prebuilt binaries updated:"
     echo "      prebuilt/firmware.bin  ($(wc -c < prebuilt/firmware.bin | tr -d ' ') bytes)"
     echo "      prebuilt/littlefs.bin  ($(wc -c < prebuilt/littlefs.bin | tr -d ' ') bytes)"
+
+    # Also copy into the web flasher directory so docs/flash/ stays in sync.
+    WEB_FLASH="$SCRIPT_DIR/../docs/flash"
+    if [ -d "$WEB_FLASH" ]; then
+        cp prebuilt/firmware.bin  "$WEB_FLASH/firmware.bin"
+        cp prebuilt/littlefs.bin  "$WEB_FLASH/littlefs.bin"
+        echo "==> Web flasher binaries updated:"
+        echo "      docs/flash/firmware.bin"
+        echo "      docs/flash/littlefs.bin"
+    fi
 }
 
 case "$ACTION" in

@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>UberANT — Web Flasher</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Flash the UberANT antenna switch firmware directly from your browser — no drivers or software required." />
+    <meta name="color-scheme" content="dark" />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        padding: 0;
+        background: #1a1a1a;
+        color: #e0e0e0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, sans-serif;
+        line-height: 1.6;
+      }
+
+      header {
+        background: #111;
+        border-bottom: 1px solid #333;
+        padding: 16px 24px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #fff;
+        letter-spacing: 0.02em;
+      }
+      header .subtitle {
+        font-size: 0.85rem;
+        color: #888;
+        margin-left: auto;
+      }
+
+      .content {
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 32px 24px 64px;
+      }
+
+      h2 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #ccc;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin: 2rem 0 0.75rem;
+        border-bottom: 1px solid #2a2a2a;
+        padding-bottom: 6px;
+      }
+
+      p { margin: 0.5rem 0 1rem; color: #bbb; }
+
+      .flash-card {
+        background: #222;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 28px 24px;
+        margin: 24px 0;
+        text-align: center;
+      }
+      .flash-card .device-name {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #fff;
+        margin-bottom: 6px;
+      }
+      .flash-card .device-desc {
+        font-size: 0.875rem;
+        color: #888;
+        margin-bottom: 24px;
+      }
+
+      esp-web-install-button {
+        --esp-tools-button-color: #e6a817;
+        --esp-tools-button-text-color: #111;
+        --esp-tools-button-border-radius: 6px;
+      }
+
+      .unsupported-msg {
+        background: #2a1a1a;
+        border: 1px solid #5a2a2a;
+        border-radius: 6px;
+        padding: 14px 18px;
+        color: #e07070;
+        font-size: 0.9rem;
+        text-align: left;
+      }
+
+      .steps {
+        counter-reset: step;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .steps li {
+        counter-increment: step;
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        padding: 10px 0;
+        border-bottom: 1px solid #2a2a2a;
+        color: #bbb;
+        font-size: 0.9rem;
+      }
+      .steps li:last-child { border-bottom: none; }
+      .steps li::before {
+        content: counter(step);
+        flex-shrink: 0;
+        width: 24px;
+        height: 24px;
+        background: #333;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #e6a817;
+        margin-top: 1px;
+      }
+
+      .note {
+        background: #1e2a1e;
+        border-left: 3px solid #4a8a4a;
+        border-radius: 0 4px 4px 0;
+        padding: 10px 14px;
+        font-size: 0.875rem;
+        color: #9aba9a;
+        margin: 12px 0;
+      }
+      .warn {
+        background: #2a2010;
+        border-left: 3px solid #a07020;
+        border-radius: 0 4px 4px 0;
+        padding: 10px 14px;
+        font-size: 0.875rem;
+        color: #c8a060;
+        margin: 12px 0;
+      }
+
+      code {
+        background: #2a2a2a;
+        border: 1px solid #3a3a3a;
+        border-radius: 3px;
+        padding: 1px 5px;
+        font-size: 0.85em;
+        color: #e0c080;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      }
+
+      a { color: #e6a817; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 8px;
+      }
+      .links a {
+        background: #2a2a2a;
+        border: 1px solid #3a3a3a;
+        border-radius: 5px;
+        padding: 6px 14px;
+        font-size: 0.85rem;
+        color: #ccc;
+        transition: border-color 0.15s, color 0.15s;
+      }
+      .links a:hover {
+        border-color: #e6a817;
+        color: #e6a817;
+        text-decoration: none;
+      }
+
+      footer {
+        margin-top: 48px;
+        border-top: 1px solid #2a2a2a;
+        padding-top: 20px;
+        font-size: 0.8rem;
+        color: #555;
+        text-align: center;
+      }
+      footer a { color: #666; }
+    </style>
+  </head>
+  <body>
+
+    <header>
+      <h1>📡 UberANT Web Flasher</h1>
+      <span class="subtitle">ESP8266 Antenna Switch</span>
+    </header>
+
+    <div class="content">
+
+      <p>
+        Flash the UberANT firmware directly from your browser using
+        <a href="https://esphome.github.io/esp-web-tools/" target="_blank" rel="noopener">ESP Web Tools</a>.
+        No drivers, no Python, no PlatformIO required — just Chrome or Edge and a USB cable.
+      </p>
+
+      <div class="warn">
+        ⚠️ <strong>Disconnect the 12 V supply</strong> from the antenna switch before opening it.
+        Connect only the USB cable to the ESP8266 controller board.
+      </div>
+
+      <h2>Flash firmware</h2>
+
+      <div class="flash-card">
+        <div class="device-name">UberANT Antenna Switch</div>
+        <div class="device-desc">MS-S5 / ANTENI.NET webSWITCH · ESP8266 · flashes firmware + web assets</div>
+
+        <esp-web-install-button manifest="manifest.json">
+          <span slot="unsupported">
+            <div class="unsupported-msg">
+              ⚠️ <strong>Web Serial is not available in this browser.</strong><br />
+              Please open this page in <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong>
+              (desktop, version 89+). Firefox and Safari do not support Web Serial.
+            </div>
+          </span>
+          <span slot="not-allowed">
+            <div class="unsupported-msg">
+              ⚠️ <strong>Web Serial requires a secure context (HTTPS).</strong><br />
+              This page must be served over <code>https://</code> — opening the file directly
+              from disk (<code>file://</code>) will not work.
+            </div>
+          </span>
+        </esp-web-install-button>
+      </div>
+
+      <div class="note">
+        💡 This flashes <strong>both</strong> the firmware binary and the LittleFS web-asset image
+        in one step — the same as running <code>./firmware/flash.sh --all</code>.
+      </div>
+
+      <h2>Before you flash</h2>
+
+      <ol class="steps">
+        <li>Remove the front face plate from the antenna switch to expose the controller board.</li>
+        <li>Plug a USB cable into the micro-USB port on the ESP8266 controller board.</li>
+        <li>Connect the other end to this computer.</li>
+        <li>Click <strong>Install</strong> above, select the serial port that appears, and follow the prompts.</li>
+      </ol>
+
+      <h2>After flashing — first-time WiFi setup</h2>
+
+      <ol class="steps">
+        <li>The device reboots. The OLED shows <code>ssid: AutoConnectAP</code>.</li>
+        <li>Connect your phone or laptop to the <strong>AutoConnectAP</strong> WiFi network.</li>
+        <li>Browse to <strong><code>http://192.168.4.1</code></strong> → Configure WiFi → enter your SSID + password → Save.</li>
+        <li>The device reboots and joins your network. The OLED shows the assigned IP for a few seconds.</li>
+        <li>Open <strong><code>http://uberant.local</code></strong> (or the IP shown on the OLED) in a browser.</li>
+      </ol>
+
+      <div class="note">
+        💡 If you need to bake WiFi credentials into the firmware image at flash time (so the device
+        joins your network without the captive portal), use
+        <code>./firmware/flash.sh --ssid MyNet --pass secret</code> from the command line instead.
+      </div>
+
+      <h2>Links</h2>
+
+      <div class="links">
+        <a href="https://github.com/madpsy/ubersdr_switch" target="_blank" rel="noopener">GitHub repo</a>
+        <a href="https://github.com/madpsy/ubersdr_switch/blob/main/README.md" target="_blank" rel="noopener">README</a>
+        <a href="https://github.com/madpsy/ubersdr_switch/blob/main/docs/rest-api.md" target="_blank" rel="noopener">REST API</a>
+        <a href="https://github.com/madpsy/ubersdr_switch/blob/main/docs/wifi-ap-config.md" target="_blank" rel="noopener">WiFi setup</a>
+        <a href="https://github.com/madpsy/ubersdr_switch/blob/main/docs/mqtt.md" target="_blank" rel="noopener">MQTT</a>
+      </div>
+
+      <footer>
+        Powered by <a href="https://esphome.github.io/esp-web-tools/" target="_blank" rel="noopener">ESP Web Tools</a>
+        (Apache 2.0, by ESPHome / Nabu Casa) ·
+        <a href="https://github.com/madpsy/ubersdr_switch" target="_blank" rel="noopener">UberANT on GitHub</a>
+      </footer>
+
+    </div>
+
+    <script type="module" src="install-button.js"></script>
+
+  </body>
+</html>
