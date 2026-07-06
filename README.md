@@ -1,4 +1,4 @@
-# UberANT Antenna Switch Firmware for UberSDR / MS-S5
+# MS-S5 Antenna Switch Firmware (works with UberSDR)
 
 ## ⚡ Flash firmware in your browser
 
