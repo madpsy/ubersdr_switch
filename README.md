@@ -9,6 +9,14 @@
 
 ---
 
+## 🛒 Where to buy
+
+The hardware is sold by ANTENI.NET (LZ2RR). I am not affiliated with them — this is an independent open-source firmware project for their device.
+
+**👉 [Buy the MS-S5 / ANTENNAS webSWITCH from ANTENI.NET](https://www.anteni.net/lz2rr/)**
+
+---
+
 WiFi-controlled antenna switch firmware for the **MS-S5 / ANTENI.NET "ANTENNAS webSWITCH"** — an ESP8266-based 5-way antenna switch compatible with KiwiSDR and other SDR setups.
 
 **Features:**
