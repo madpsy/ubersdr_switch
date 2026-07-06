@@ -1,5 +1,14 @@
 # UberANT Antenna Switch Firmware for UberSDR
 
+## ⚡ Flash firmware in your browser
+
+> **No drivers, no Python, no PlatformIO required.**
+> Works in Chrome and Edge (desktop) with a USB cable.
+
+**👉 [Open Web Flasher](https://madpsy.github.io/ubersdr_switch/flash/)**
+
+---
+
 WiFi-controlled antenna switch firmware for the **MS-S5 / ANTENI.NET "ANTENNAS webSWITCH"** — an ESP8266-based 5-way antenna switch compatible with KiwiSDR and other SDR setups.
 
 **Features:**
