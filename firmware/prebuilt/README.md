@@ -2,6 +2,7 @@
 
 These binaries are built from the source in [`../src/`](../src/) and [`../data/`](../data/)
 and committed here so users can flash the firmware **without needing PlatformIO or a compiler**.
+Each version is also attached to a [GitHub Release](https://github.com/madpsy/ubersdr_switch/releases) (with SHA-256 sums).
 
 | File | Description |
 |------|-------------|

@@ -160,14 +160,19 @@ cd firmware
 ./build.sh all /dev/ttyACM0 # compile + flash both
 ```
 
-To update the prebuilt binaries after making changes:
+### Releasing
+
+Each version is published three ways from the same images: `firmware/prebuilt/` (used by
+`flash.sh`), `docs/flash/` (the web flasher, via GitHub Pages) and a
+[GitHub Release](https://github.com/madpsy/ubersdr_switch/releases).
 
 ```bash
 cd firmware
-./build.sh build            # produces .pio/build/esp12e/firmware.bin
-./build.sh fs               # produces .pio/build/esp12e/littlefs.bin
-cp .pio/build/esp12e/firmware.bin  prebuilt/firmware.bin
-cp .pio/build/esp12e/littlefs.bin  prebuilt/littlefs.bin
+./build.sh                  # builds firmware + LittleFS, copies both to prebuilt/ and docs/flash/
+# bump "version" in prebuilt/manifest.json and docs/flash/manifest.json (keep them equal)
+test/host/run.sh --build    # must pass
+git commit -am "Release vX.Y.Z" && git push
+git tag vX.Y.Z && git push origin vX.Y.Z   # CI runs the tests and publishes the Release
 ```
 
 ### Tests

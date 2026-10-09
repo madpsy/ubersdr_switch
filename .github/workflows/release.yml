@@ -1,0 +1,37 @@
+name: release
+
+# Push a tag vX.Y.Z to publish a GitHub Release with the COMMITTED prebuilt images
+# (firmware/prebuilt/, the same files the web flasher serves). The tests run first, and
+# the tag must match the version in the flasher manifest.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Tag matches the flasher manifest version
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          have="$(node -p 'require("./firmware/prebuilt/manifest.json").version')"
+          echo "tag $want, manifest $have"
+          test "$want" = "$have"
+      - name: Host tests
+        run: firmware/test/host/run.sh
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then echo "release exists"; exit 0; fi
+          cd firmware/prebuilt
+          sha256sum firmware.bin littlefs.bin > SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes \
+            firmware.bin littlefs.bin manifest.json SHA256SUMS
