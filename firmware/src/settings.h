@@ -7,7 +7,7 @@
 //
 // Layout of the settings region (base = EEPROM_SETTINGS_BASE):
 //   +0        magic (SETTINGS_MAGIC)
-//   +1        flags: bit0 mqtt_enabled, bit1 retain, bit2 commands
+//   +1        flags: bit0 mqtt_enabled, bit1 retain, bit2 commands, bit3 discovery
 //   +2..3     MQTT port (little-endian uint16)
 //   +4        host        (MQTT_HOST_MAXLEN+1, NUL-padded)
 //   +...      user        (MQTT_USER_MAXLEN+1)
@@ -67,6 +67,7 @@ public:
         _mqtt.enabled  = flags & 0x01;
         _mqtt.retain   = flags & 0x02;
         _mqtt.commands = flags & 0x04;
+        _mqtt.discovery = flags & 0x08;
         _mqtt.port     = (uint16_t)EEPROM.read(base + 2)
                        | ((uint16_t)EEPROM.read(base + 3) << 8);
         int p = base + 4;
@@ -218,6 +219,7 @@ public:
         if (_mqtt.enabled)  flags |= 0x01;
         if (_mqtt.retain)   flags |= 0x02;
         if (_mqtt.commands) flags |= 0x04;
+        if (_mqtt.discovery) flags |= 0x08;
         EEPROM.write(base + 1, flags);
         EEPROM.write(base + 2, (uint8_t)(_mqtt.port & 0xFF));
         EEPROM.write(base + 3, (uint8_t)(_mqtt.port >> 8));

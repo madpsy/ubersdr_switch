@@ -22,7 +22,7 @@ WiFi-controlled antenna switch firmware for the **MS-S5 / ANTENI.NET "ANTENNAS w
 **Features:**
 - **Modern dark web UI** (PWA, installable on mobile) with antenna grid, schedule, settings, log and help pages
 - **REST JSON API** for scripting and SDR automation (`/api/status`, `/api/antenna`, etc.)
-- **MQTT support** — publishes state/events, accepts commands; Home Assistant-friendly
+- **MQTT support** — publishes state/events, accepts commands; optional **Tasmota discovery** (one interlocked relay per antenna), so Home Assistant and other Tasmota tools find it on their own
 - **Time-based scheduler** — switch antennas automatically by day/time (requires NTP)
 - **Lock mode** — prevent accidental antenna changes via button hold or API/MQTT
 - **Custom antenna names** — label each port; names persist across firmware updates
@@ -169,6 +169,18 @@ cd firmware
 cp .pio/build/esp12e/firmware.bin  prebuilt/firmware.bin
 cp .pio/build/esp12e/littlefs.bin  prebuilt/littlefs.bin
 ```
+
+### Tests
+
+The firmware, web UI, docs and prebuilt images are covered by host-side tests that run
+on a PC — no board needed. Run them before flashing or committing a change:
+
+```bash
+firmware/test/host/run.sh            # all suites (needs g++ and node)
+firmware/test/host/run.sh --build    # …and compile the firmware with PlatformIO
+```
+
+See [`firmware/test/host/README.md`](firmware/test/host/README.md) for what each suite covers.
 
 ---
 

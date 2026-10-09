@@ -93,7 +93,7 @@ static const uint8_t  WIFI_CONNECT_RETRIES    = 3;      // WiFiManager's own ret
 // ---------------------------------------------------------------------------
 
 static const uint8_t  NTP_HOST_MAXLEN   = 48;
-static const char     NTP_HOST_DEFAULT[] = "pool.ntp.org";
+static const char     NTP_HOST_DEFAULT[] = "time.cloudflare.com";
 static const uint16_t NTP_PORT_DEFAULT  = 123;
 
 // ---------------------------------------------------------------------------
@@ -123,13 +123,14 @@ struct MqttConfig {
     char     prefix[MQTT_PREFIX_MAXLEN + 1] = {0};
     bool     retain   = true;    // publish retained state/availability messages
     bool     commands = false;   // accept inbound command topics (<prefix>/set, ...)
+    bool     discovery = false;  // Tasmota discovery + Tasmota POWER<n> commands (see mqtt.h)
 };
 
 // EEPROM region for the settings block. Kept AFTER the antenna block
 // (max + names) in the shared EEPROM sector. A single EEPROM.begin(EEPROM_TOTAL_SIZE)
 // in setup() covers both. Layout inside the settings region:
 //   [0]   magic 0x5A
-//   [1]   flags: bit0 mqtt_enabled, bit1 retain, bit2 commands
+//   [1]   flags: bit0 mqtt_enabled, bit1 retain, bit2 commands, bit3 discovery
 //   [2-3] mqtt port (LE)
 //   [4..] host / user / pass / prefix / device_name / ntp_host, each a fixed NUL-padded field
 //   [..] ntp_port (LE, 2 bytes)

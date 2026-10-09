@@ -85,6 +85,7 @@ static void startStationServices();
 static bool tryProvisionedWiFi();
 static bool retrySavedWiFi();
 static void serveAntennaPage();
+static String apiStatusJson();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -227,6 +228,78 @@ static void logEvent(const char *source) {
     g_mqtt.publishEvent(source);
     // Schedule a deferred write of the new position to LittleFS (last-port feature).
     if (g_settings.startupPortMode() == 1) scheduleLastPortWrite();
+}
+
+// Start (or restart, after a config change) the MQTT client with the stored config.
+// ONE definition for boot and for POST /api/mqtt: the two used to be separate copies
+// that drifted apart (after a save, a rename over MQTT stopped republishing the state).
+static void startMqtt() {
+    g_mqtt.begin(g_settings.mqtt(), g_hostname,
+        // statusFn: full status JSON
+        []() -> String { return apiStatusJson(); },
+        // infoFn: full device/network info JSON (same field set as GET /api/info)
+        []() -> String {
+            long up = millis() / 1000;
+            String j; j.reserve(768);
+            j += F("{");
+            j += F("\"hostname\":\"");   j += g_hostname;                          j += F("\",");
+            j += F("\"sta_mac\":\"");    j += WiFi.macAddress();                   j += F("\",");
+            j += F("\"sta_ip\":\"");     j += WiFi.localIP().toString();           j += F("\",");
+            j += F("\"gateway\":\"");    j += WiFi.gatewayIP().toString();         j += F("\",");
+            j += F("\"netmask\":\"");    j += WiFi.subnetMask().toString();        j += F("\",");
+            j += F("\"dns\":\"");        j += WiFi.dnsIP().toString();             j += F("\",");
+            j += F("\"ssid\":\"");       j += WiFi.SSID();                         j += F("\",");
+            j += F("\"bssid\":\"");      j += WiFi.BSSIDstr();                     j += F("\",");
+            j += F("\"ap_mac\":\"");     j += WiFi.softAPmacAddress();             j += F("\",");
+            j += F("\"rssi\":");         j += String(WiFi.RSSI());                 j += F(",");
+            j += F("\"ap_mode\":");      j += (g_apMode ? F("true") : F("false")); j += F(",");
+            j += F("\"sdk\":\"");        j += String(ESP.getSdkVersion());         j += F("\",");
+            j += F("\"core\":\"");       j += ESP.getCoreVersion();                j += F("\",");
+            j += F("\"chip_id\":\"");    j += String(ESP.getChipId(), HEX);        j += F("\",");
+            j += F("\"flash_id\":\"");   j += String(ESP.getFlashChipId(), HEX);   j += F("\",");
+            j += F("\"flash_size\":");   j += String(ESP.getFlashChipRealSize());  j += F(",");
+            j += F("\"boot\":");         j += String(ESP.getBootVersion());        j += F(",");
+            j += F("\"reset\":\"");      j += ESP.getResetReason();                j += F("\",");
+            j += F("\"heap\":");         j += String(ESP.getFreeHeap());           j += F(",");
+            j += F("\"sketch\":");       j += String(ESP.getSketchSize());         j += F(",");
+            j += F("\"free_sketch\":");  j += String(ESP.getFreeSketchSpace());    j += F(",");
+            j += F("\"uptime\":");       j += String(up);                          j += F(",");
+            j += F("\"device_name\":\""); j += g_settings.deviceName();            j += F("\",");
+            j += F("\"time\":\"");       j += g_ntp.isoNow();                      j += F("\",");
+            j += F("\"local_time\":\""); j += g_ntp.localIsoNow(g_settings.tzOffsetMinutes()); j += F("\",");
+            j += F("\"tz_offset\":");    j += String((int)g_settings.tzOffsetMinutes());        j += F("");
+            j += F("}");
+            return j;
+        },
+        // timeFn: current ISO8601 UTC timestamp (or "" if NTP not synced)
+        []() -> String { return g_ntp.isoNow(); },
+        // setFn: handle "up"/"down"/"ground"/"<n>" commands
+        [](const String &cmd) {
+            if (g_locked) { LOGF("MQTT set '%s' ignored (locked)", cmd.c_str()); return; }
+            if      (cmd == "up")     { g_ant.up();   }
+            else if (cmd == "down")   { g_ant.down(); }
+            else if (cmd == "ground") { g_ant.setPosition(POS_GROUND); }
+            else {
+                int p = cmd.toInt();
+                if (p >= 0 && p <= g_ant.maxAntennas()) g_ant.setPosition(p);
+            }
+            g_oled.notifyPortChange();
+            refreshStatus(); logEvent("mqtt");
+        },
+        // maxFn: set max antennas
+        [](int v) { g_ant.setMaxAntennas(v); refreshStatus(); g_mqtt.publishState(); },
+        // nameFn: set a port name
+        [](int pos, const String &n) { g_ant.setName(pos, n); refreshStatus(); g_mqtt.publishState(); },
+        // restartFn
+        []() { delay(200); ESP.restart(); },
+        // displayFn
+        [](const String &txt, char aln, uint32_t dur, bool) {
+            bool wb = g_oled.isBlank(); g_lastActivity = millis();
+            g_oled.showCustomMessage(txt, aln, dur, wb); },
+        [](bool locked) {
+            if (locked != g_locked) toggleLock("mqtt"); },
+        []() { toggleLock("mqtt"); }
+);
 }
 
 // Wipe all EEPROM settings (antenna names, max, MQTT, NTP, display, schedule, etc.)
@@ -646,11 +719,14 @@ static void setupStationPortal() {
     g_portal.on("/",       []() { servePortalAsset("/app.html"); });
     g_portal.on("/app",    []() { servePortalAsset("/app.html"); });   // explicit alias
     g_portal.on("/old",    []() { serveAntennaPage(); });              // stock page
-    g_portal.on("/5/on",   []() { g_ant.up();   LOGF("web UP -> %s", g_ant.label().c_str());
+    // Locked: the stock page is re-rendered unchanged (it has no way to show an error).
+    g_portal.on("/5/on",   []() { if (g_locked) { LOG("web UP ignored (locked)"); serveAntennaPage(); return; }
+                                  g_ant.up();   LOGF("web UP -> %s", g_ant.label().c_str());
                                   g_oled.notifyPortChange();
                                   refreshStatus(); logEvent("web");
                                   serveAntennaPage(); });
-    g_portal.on("/4/on",   []() { g_ant.down(); LOGF("web DOWN -> %s", g_ant.label().c_str());
+    g_portal.on("/4/on",   []() { if (g_locked) { LOG("web DOWN ignored (locked)"); serveAntennaPage(); return; }
+                                  g_ant.down(); LOGF("web DOWN -> %s", g_ant.label().c_str());
                                   g_oled.notifyPortChange();
                                   refreshStatus(); logEvent("web");
                                   serveAntennaPage(); });
@@ -1100,6 +1176,8 @@ static void setupStationPortal() {
             j += F("\",\"prefix\":\""); j += c.prefix;
             j += F("\",\"retain\":");   j += (c.retain   ? F("true") : F("false"));
             j += F(",\"commands\":");   j += (c.commands  ? F("true") : F("false"));
+            j += F(",\"discovery\":");  j += (c.discovery ? F("true") : F("false"));
+            j += F(",\"tasmota_topic\":\""); j += g_mqtt.tasmotaTopic(); j += F("\"");
             j += F(",\"connected\":");  j += (g_mqtt.connected() ? F("true") : F("false"));
             j += F(",\"device_name\":\""); j += g_settings.deviceName(); j += F("\"");
             j += F("}");
@@ -1119,7 +1197,7 @@ static void setupStationPortal() {
             sv.toCharArray(c.pass, sizeof(c.pass));
         }
         if (apiIntParam("port",     iv)) c.port     = (uint16_t)iv;
-        // "enabled", "retain", "commands" are booleans — must use string search only;
+        // "enabled", "retain", "commands", "discovery" are booleans — must use string search only;
         // apiIntParam() returns 0 for JSON "true" which would always set them false.
         if (g_portal.hasArg("plain")) {
             String body = g_portal.arg("plain");
@@ -1135,6 +1213,7 @@ static void setupStationPortal() {
             boolField("enabled",  c.enabled);
             boolField("retain",   c.retain);
             boolField("commands", c.commands);
+            boolField("discovery", c.discovery);
         }
         g_settings.setMqtt(c);
         // Handle device_name separately (stored outside MqttConfig).
@@ -1156,60 +1235,7 @@ static void setupStationPortal() {
             }
         }
         // Re-initialise the MQTT client with the new config (takes effect immediately).
-        g_mqtt.begin(g_settings.mqtt(), g_hostname,
-            []() -> String { return apiStatusJson(); },
-            []() -> String {
-                long up = millis() / 1000;
-                String j; j.reserve(768);
-                j += F("{");
-                j += F("\"hostname\":\"");   j += g_hostname;                          j += F("\",");
-                j += F("\"sta_mac\":\"");    j += WiFi.macAddress();                   j += F("\",");
-                j += F("\"sta_ip\":\"");     j += WiFi.localIP().toString();           j += F("\",");
-                j += F("\"gateway\":\"");    j += WiFi.gatewayIP().toString();         j += F("\",");
-                j += F("\"netmask\":\"");    j += WiFi.subnetMask().toString();        j += F("\",");
-                j += F("\"dns\":\"");        j += WiFi.dnsIP().toString();             j += F("\",");
-                j += F("\"ssid\":\"");       j += WiFi.SSID();                         j += F("\",");
-                j += F("\"bssid\":\"");      j += WiFi.BSSIDstr();                     j += F("\",");
-                j += F("\"ap_mac\":\"");     j += WiFi.softAPmacAddress();             j += F("\",");
-                j += F("\"rssi\":");         j += String(WiFi.RSSI());                 j += F(",");
-                j += F("\"ap_mode\":");      j += (g_apMode ? F("true") : F("false")); j += F(",");
-                j += F("\"sdk\":\"");        j += String(ESP.getSdkVersion());         j += F("\",");
-                j += F("\"core\":\"");       j += ESP.getCoreVersion();                j += F("\",");
-                j += F("\"chip_id\":\"");    j += String(ESP.getChipId(), HEX);        j += F("\",");
-                j += F("\"flash_id\":\"");   j += String(ESP.getFlashChipId(), HEX);   j += F("\",");
-                j += F("\"flash_size\":");   j += String(ESP.getFlashChipRealSize());  j += F(",");
-                j += F("\"boot\":");         j += String(ESP.getBootVersion());        j += F(",");
-                j += F("\"reset\":\"");      j += ESP.getResetReason();                j += F("\",");
-                j += F("\"heap\":");         j += String(ESP.getFreeHeap());           j += F(",");
-                j += F("\"sketch\":");       j += String(ESP.getSketchSize());         j += F(",");
-                j += F("\"free_sketch\":");  j += String(ESP.getFreeSketchSpace());    j += F(",");
-                j += F("\"uptime\":");       j += String(up);                          j += F(",");
-                j += F("\"device_name\":\""); j += g_settings.deviceName();            j += F("\",");
-                j += F("\"time\":\"");       j += g_ntp.isoNow();                      j += F("\",");
-                j += F("\"local_time\":\""); j += g_ntp.localIsoNow(g_settings.tzOffsetMinutes()); j += F("\",");
-                j += F("\"tz_offset\":");    j += String((int)g_settings.tzOffsetMinutes());        j += F("");
-                j += F("}");
-                return j;
-            },
-            []() -> String { return g_ntp.isoNow(); },
-            [](const String &cmd) {
-                if      (cmd == "up")     { g_ant.up();   }
-                else if (cmd == "down")   { g_ant.down(); }
-                else if (cmd == "ground") { g_ant.setPosition(POS_GROUND); }
-                else                      { int p = cmd.toInt(); if (p >= 0 && p <= g_ant.maxAntennas()) g_ant.setPosition(p); }
-                g_oled.notifyPortChange();
-                refreshStatus(); logEvent("mqtt");
-            },
-            [](int v)                    { g_ant.setMaxAntennas(v); refreshStatus(); g_mqtt.publishState(); },
-            [](int pos, const String &n) { g_ant.setName(pos, n);  refreshStatus(); },
-            []()                         { delay(200); ESP.restart(); },
-            [](const String &txt, char aln, uint32_t dur, bool) {
-                bool wb = g_oled.isBlank(); g_lastActivity = millis();
-                g_oled.showCustomMessage(txt, aln, dur, wb); },
-            [](bool locked) {
-                if (locked != g_locked) toggleLock("mqtt"); },
-            []() { toggleLock("mqtt"); }
-        );
+        startMqtt();
         LOGF("MQTT config updated: enabled=%d host=%s", c.enabled, c.host);
         apiCors();
         g_portal.send(200, "application/json", F("{\"saved\":true}"));
@@ -1652,72 +1678,24 @@ static void startStationServices() {
     // Wire NTP timestamp into the debug log so log lines get ISO8601 prefixes.
     DebugLog::setTimeFn([]() -> String { return g_ntp.isoNow(); });
 
-    // Start MQTT (if configured). Lambdas capture g_hostname by value at call time.
-    g_mqtt.begin(g_settings.mqtt(), g_hostname,
-        // statusFn: full status JSON
-        []() -> String { return apiStatusJson(); },
-        // infoFn: full device/network info JSON (same field set as GET /api/info)
-        []() -> String {
-            long up = millis() / 1000;
-            String j; j.reserve(768);
-            j += F("{");
-            j += F("\"hostname\":\"");   j += g_hostname;                          j += F("\",");
-            j += F("\"sta_mac\":\"");    j += WiFi.macAddress();                   j += F("\",");
-            j += F("\"sta_ip\":\"");     j += WiFi.localIP().toString();           j += F("\",");
-            j += F("\"gateway\":\"");    j += WiFi.gatewayIP().toString();         j += F("\",");
-            j += F("\"netmask\":\"");    j += WiFi.subnetMask().toString();        j += F("\",");
-            j += F("\"dns\":\"");        j += WiFi.dnsIP().toString();             j += F("\",");
-            j += F("\"ssid\":\"");       j += WiFi.SSID();                         j += F("\",");
-            j += F("\"bssid\":\"");      j += WiFi.BSSIDstr();                     j += F("\",");
-            j += F("\"ap_mac\":\"");     j += WiFi.softAPmacAddress();             j += F("\",");
-            j += F("\"rssi\":");         j += String(WiFi.RSSI());                 j += F(",");
-            j += F("\"ap_mode\":");      j += (g_apMode ? F("true") : F("false")); j += F(",");
-            j += F("\"sdk\":\"");        j += String(ESP.getSdkVersion());         j += F("\",");
-            j += F("\"core\":\"");       j += ESP.getCoreVersion();                j += F("\",");
-            j += F("\"chip_id\":\"");    j += String(ESP.getChipId(), HEX);        j += F("\",");
-            j += F("\"flash_id\":\"");   j += String(ESP.getFlashChipId(), HEX);   j += F("\",");
-            j += F("\"flash_size\":");   j += String(ESP.getFlashChipRealSize());  j += F(",");
-            j += F("\"boot\":");         j += String(ESP.getBootVersion());        j += F(",");
-            j += F("\"reset\":\"");      j += ESP.getResetReason();                j += F("\",");
-            j += F("\"heap\":");         j += String(ESP.getFreeHeap());           j += F(",");
-            j += F("\"sketch\":");       j += String(ESP.getSketchSize());         j += F(",");
-            j += F("\"free_sketch\":");  j += String(ESP.getFreeSketchSpace());    j += F(",");
-            j += F("\"uptime\":");       j += String(up);                          j += F(",");
-            j += F("\"device_name\":\""); j += g_settings.deviceName();            j += F("\",");
-            j += F("\"time\":\"");       j += g_ntp.isoNow();                      j += F("\",");
-            j += F("\"local_time\":\""); j += g_ntp.localIsoNow(g_settings.tzOffsetMinutes()); j += F("\",");
-            j += F("\"tz_offset\":");    j += String((int)g_settings.tzOffsetMinutes());        j += F("");
-            j += F("}");
-            return j;
-        },
-        // timeFn: current ISO8601 UTC timestamp (or "" if NTP not synced)
-        []() -> String { return g_ntp.isoNow(); },
-        // setFn: handle "up"/"down"/"ground"/"<n>" commands
-        [](const String &cmd) {
-            if      (cmd == "up")     { g_ant.up();   }
-            else if (cmd == "down")   { g_ant.down(); }
-            else if (cmd == "ground") { g_ant.setPosition(POS_GROUND); }
-            else {
-                int p = cmd.toInt();
-                if (p >= 0 && p <= g_ant.maxAntennas()) g_ant.setPosition(p);
-            }
+    // Tasmota discovery hooks (mqtt.h): the switch as an interlocked Tasmota relay board.
+    {
+        Mqtt::TasmotaHooks h;
+        h.position    = []() -> int { return g_ant.position(); };
+        h.maxAntennas = []() -> int { return g_ant.maxAntennas(); };
+        h.portName    = [](int i) -> String { return g_ant.name(i); };
+        h.locked      = []() -> bool { return g_locked; };
+        h.deviceName  = []() -> String { return String(g_settings.deviceName()); };
+        h.localTime   = []() -> String { return g_ntp.localIsoNow(g_settings.tzOffsetMinutes()); };
+        h.select      = [](int pos) {
+            g_ant.setPosition(pos);
             g_oled.notifyPortChange();
             refreshStatus(); logEvent("mqtt");
-        },
-        // maxFn: set max antennas
-        [](int v) { g_ant.setMaxAntennas(v); refreshStatus(); g_mqtt.publishState(); },
-        // nameFn: set a port name
-        [](int pos, const String &n) { g_ant.setName(pos, n); refreshStatus(); g_mqtt.publishState(); },
-        // restartFn
-        []() { delay(200); ESP.restart(); },
-        // displayFn
-        [](const String &txt, char aln, uint32_t dur, bool) {
-            bool wb = g_oled.isBlank(); g_lastActivity = millis();
-            g_oled.showCustomMessage(txt, aln, dur, wb); },
-        [](bool locked) {
-            if (locked != g_locked) toggleLock("mqtt"); },
-        []() { toggleLock("mqtt"); }
-);
+        };
+        g_mqtt.setTasmotaHooks(h);
+    }
+
+    startMqtt();   // if configured
     LOGF("MQTT: begin done (enabled=%d)", (int)g_mqtt.enabled());
 
     g_lastActivity = millis();   // start the blank inactivity timer from now

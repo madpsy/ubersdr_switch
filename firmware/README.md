@@ -63,7 +63,12 @@ firmware/
 │   ├── antenna.h         # position model + 74HCT138 decoder drive + persisted max
 │   ├── buttons.h         # 4 active-low buttons, debounce + edge detection
 │   ├── display.h         # 0.91" 128×32 SSD1306 OLED screens (Heltec, reset on GPIO16)
-│   └── webserver.h       # raw Up/Dn app server (serves data/ over LittleFS) + /debug
+│   ├── settings.h        # persisted MQTT / NTP / display / startup settings (EEPROM)
+│   ├── schedule.h        # time-based antenna scheduler (EEPROM)
+│   ├── ntp.h             # NTP sync + ISO 8601 time formatting
+│   ├── eventlog.h        # last 25 antenna changes (/api/events)
+│   └── mqtt.h            # MQTT client: uberant/<host>/… topics + optional Tasmota discovery
+├── test/host/            # host-side tests: ./test/host/run.sh (see its README.md)
 └── data/                 # web assets, flashed to LittleFS (editable, not embedded)
     ├── app.html          # modern dark REST-driven UI — the DEFAULT page at "/"
     ├── old.html          # classic stock "Web ANTENNAS switch" page (%LABEL%), at /old

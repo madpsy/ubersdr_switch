@@ -113,8 +113,8 @@ and is what the web UI's **ℹ️ info** button renders.
 | POST | `/api/display` | `{"text":"…","duration":N,"align":"…"}` | Show a custom message on the OLED | `{"text":"…","duration":N,"align":"…"}` |
 | GET | `/api/display/blank` | — | Read display blank (screen-saver) config | `{"enabled":bool,"timeout":N}` |
 | POST | `/api/display/blank` | `{"enabled":true,"timeout":N}` | Set display blank config (persisted to EEPROM) | `{"enabled":bool,"timeout":N}` |
-| GET | `/api/display/mode` | — | Read OLED display mode | `{"mode":"port"\|"clock"}` |
-| POST | `/api/display/mode` | `{"mode":"port"}` or `{"mode":"clock"}` | Set OLED display mode (persisted to EEPROM). `"port"` = antenna label prominent (default); `"clock"` = time prominent. Port changes always show the antenna label for 2 s regardless. | `{"mode":"port"\|"clock"}` |
+| GET | `/api/display/mode` | — | Read OLED display mode | `{"mode":"port"\|"clock"\|"cycle"}` |
+| POST | `/api/display/mode` | `{"mode":"port"}`, `{"mode":"clock"}` or `{"mode":"cycle"}` | Set OLED display mode (persisted to EEPROM). `"port"` = antenna label prominent (default); `"clock"` = time prominent; `"cycle"` = alternate every 5 s. Anything else = `"port"`. Port changes always show the antenna label for 2 s regardless. | `{"mode":"port"\|"clock"\|"cycle"}` |
 | GET | `/api/default-port` | — | Read the startup default port | `{"default_port":N}` |
 | POST | `/api/default-port` | `{"default_port":N}` | Set the startup default port (0=GROUND, 1–7=ANT1–ANT7). Persisted to EEPROM. Clamped to GROUND if max antennas is later reduced below this value. | `{"default_port":N}` |
 | GET | `/api/startup-port` | — | Read startup port behaviour | `{"mode":"default"\|"last"}` |
@@ -326,7 +326,7 @@ mosquitto_pub -h 192.168.1.10 -t "uberant/ESP-45CA21/display" \
 
 ```json
 {
-  "host": "pool.ntp.org",
+  "host": "time.cloudflare.com",
   "port": 123,
   "synced": true,
   "time": "2024-07-03T15:04:05Z",

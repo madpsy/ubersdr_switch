@@ -526,7 +526,7 @@
 <span class="m"># NTP: check sync status / set server / set timezone (minutes east of UTC)</span>
 <span class="c">curl "http://<span class="curlH">this-device</span>/api/ntp"</span>
 <span class="c">curl -X POST -H "Content-Type: application/json" \
-     -d '{"host":"pool.ntp.org","port":123}' "http://<span class="curlH">this-device</span>/api/ntp"</span>
+     -d '{"host":"time.cloudflare.com","port":123}' "http://<span class="curlH">this-device</span>/api/ntp"</span>
 <span class="c">curl -X POST -H "Content-Type: application/json" \
      -d '{"tz_offset":60}' "http://<span class="curlH">this-device</span>/api/ntp"</span>
 
@@ -552,6 +552,15 @@
       <tr><td><code>&lt;prefix&gt;/display</code></td><td><code>{"text":"…","duration":N,"align":"…"}</code></td><td>Show custom OLED message</td></tr>
       <tr><td><code>&lt;prefix&gt;/lock</code></td><td><code>"lock"</code> / <code>"unlock"</code> / <code>"toggle"</code></td><td>Lock or unlock antenna selection</td></tr>
       <tr><td><code>&lt;prefix&gt;/restart</code></td><td>any</td><td>Reboot the device</td></tr>
+    </table>
+    <h4>Tasmota commands <small style="font-weight:normal;color:var(--muted)">(requires Tasmota discovery in Settings → MQTT)</small></h4>
+    <p class="lead">Each antenna port is an interlocked Tasmota relay on topic <code>uberant_&lt;last 6 MAC hex&gt;</code>. Turning the selected port off selects GROUND. The lock blocks changes.</p>
+    <table class="ep">
+      <tr><th>Topic</th><th>Payload</th><th>Effect</th></tr>
+      <tr><td><code>cmnd/&lt;t&gt;/POWER&lt;n&gt;</code></td><td><code>ON</code> | <code>OFF</code> | <code>TOGGLE</code> | empty</td><td>Select / deselect port n, or report it</td></tr>
+      <tr><td><code>cmnd/&lt;t&gt;/POWER0</code></td><td><code>OFF</code></td><td>GROUND</td></tr>
+      <tr><td><code>stat/&lt;t&gt;/POWER&lt;n&gt;</code></td><td><code>ON</code> / <code>OFF</code></td><td>Published on every change</td></tr>
+      <tr><td><code>tele/&lt;t&gt;/LWT</code></td><td><code>Online</code> / <code>Offline</code></td><td>Availability (retained)</td></tr>
     </table>
     <pre id="mqttCmdPre"><span class="m"># mosquitto_pub examples</span>
 <span class="c">mosquitto_pub -h <span id="mqttCmdHost">…</span> -t "<span id="mqttCmdPfx">uberant/ESP-XXXXXX</span>/set" -m "3"</span>
@@ -669,6 +678,10 @@
       <div><span>Accept commands</span><small>Subscribe to set/max/name/restart topics</small></div>
       <label class="tog"><input type="checkbox" id="mqttCommands"><span class="slider"></span></label>
     </div>
+    <div class="toggle-row">
+      <div><span>Tasmota discovery</span><small>Appear as a Tasmota relay board (one relay per antenna) to Home Assistant and other Tasmota tools</small></div>
+      <label class="tog"><input type="checkbox" id="mqttDiscovery"><span class="slider"></span></label>
+    </div>
 
     <label>Broker host</label>
     <input type="text" id="mqttHost" maxlength="48" placeholder="e.g. 192.168.1.10 or mqtt.local" autocomplete="off">
@@ -702,7 +715,7 @@
     <h4 style="margin-top:22px">NTP (time sync)</h4>
     <div id="ntpStatus" style="font-size:12px;color:var(--muted);margin-bottom:8px">loading…</div>
     <label>NTP server</label>
-    <input type="text" id="ntpHost" maxlength="48" placeholder="pool.ntp.org" autocomplete="off">
+    <input type="text" id="ntpHost" maxlength="48" placeholder="time.cloudflare.com" autocomplete="off">
     <label>Port <small style="display:inline;color:var(--muted)">(default 123)</small></label>
     <input type="number" id="ntpPort" min="1" max="65535" placeholder="123">
 
@@ -1421,6 +1434,7 @@
       document.getElementById("mqttEnabled").checked  = !!c.enabled;
       document.getElementById("mqttRetain").checked   = !!c.retain;
       document.getElementById("mqttCommands").checked = !!c.commands;
+      document.getElementById("mqttDiscovery").checked = !!c.discovery;
       document.getElementById("mqttHost").value   = c.host   || "";
       document.getElementById("mqttPort").value   = c.port   || 1883;
       document.getElementById("mqttUser").value   = c.user   || "";
@@ -1443,7 +1457,7 @@
     }).catch(function(){ });
     // Load NTP config + timezone offset
     api("/api/ntp").then(function(n){
-      document.getElementById("ntpHost").value = n.host || "pool.ntp.org";
+      document.getElementById("ntpHost").value = n.host || "time.cloudflare.com";
       document.getElementById("ntpPort").value = n.port || 123;
       // Select the closest matching timezone option.
       var tzSel = document.getElementById("tzOffset");
@@ -1488,6 +1502,7 @@
       enabled:     document.getElementById("mqttEnabled").checked,
       retain:      document.getElementById("mqttRetain").checked,
       commands:    document.getElementById("mqttCommands").checked,
+      discovery:   document.getElementById("mqttDiscovery").checked,
       host:        document.getElementById("mqttHost").value.trim(),
       port:        parseInt(document.getElementById("mqttPort").value, 10) || 1883,
       user:        document.getElementById("mqttUser").value.trim(),
@@ -1498,7 +1513,7 @@
     var tzMin = parseInt(document.getElementById("tzOffset").value, 10) || 0;
     _tzOffsetMin = tzMin;   // apply immediately so clock updates without reload
     var ntpBody = {
-      host:      document.getElementById("ntpHost").value.trim() || "pool.ntp.org",
+      host:      document.getElementById("ntpHost").value.trim() || "time.cloudflare.com",
       port:      parseInt(document.getElementById("ntpPort").value, 10) || 123,
       tz_offset: tzMin
     };

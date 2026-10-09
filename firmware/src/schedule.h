@@ -177,11 +177,17 @@ public:
     // the lowest-indexed one wins (caller fires once).
     int tick(uint8_t localHour, uint8_t localMinute, uint8_t localWday,
              bool locked = false) {
+        // Pack day+hour+minute into a 16-bit key to detect re-fires within the same minute.
+        uint16_t minKey = (uint16_t)localWday * 1440 + (uint16_t)localHour * 60 + localMinute;
+        // A new minute re-arms every entry: the guard only suppresses repeat ticks WITHIN
+        // the minute an entry fired, so a daily entry fires again tomorrow. (It used to be
+        // cleared only by an edit, so an entry fired once per boot.)
+        if (minKey != _lastTickMin) {
+            _lastTickMin = minKey;
+            for (uint8_t i = 0; i < SCHED_MAX_ENTRIES; i++) _lastFiredMin[i] = 0xFFFF;
+        }
         if (!_schedEnabled) return -1;
         if (_respectLock && locked) return -1;
-
-        // Pack hour+minute into a 16-bit key to detect re-fires within the same minute.
-        uint16_t minKey = (uint16_t)localHour * 60 + localMinute;
 
         for (uint8_t i = 0; i < SCHED_MAX_ENTRIES; i++) {
             const ScheduleEntry &e = _entries[i];
@@ -202,7 +208,8 @@ public:
 
     // Find the next enabled entry that will fire, given the current local time.
     // Returns a compact string "HH:MM ANT n" / "HH:MM GROUND" or "" if none.
-    // Scans forward up to 7 days to find the next match.
+    // Scans forward up to 7 days to find the next match (offset 7 = the same weekday
+    // next week, for an entry whose time has already passed today).
     String nextFiring(uint8_t localHour, uint8_t localMinute, uint8_t localWday) const {
         if (!_schedEnabled) return String();
         int bestMins = -1;
@@ -210,7 +217,7 @@ public:
         for (uint8_t i = 0; i < SCHED_MAX_ENTRIES; i++) {
             const ScheduleEntry &e = _entries[i];
             if (!e.enabled) continue;
-            for (int dayOffset = 0; dayOffset <= 6; dayOffset++) {
+            for (int dayOffset = 0; dayOffset <= 7; dayOffset++) {
                 uint8_t wday = (localWday + dayOffset) % 7;
                 if (!(e.daysMask & (1 << wday))) continue;
                 int entryMins = (int)e.hour * 60 + (int)e.minute;
@@ -266,9 +273,11 @@ private:
     bool          _schedEnabled = true;    // master on/off (default enabled)
     bool          _respectLock  = false;
     ScheduleEntry _entries[SCHED_MAX_ENTRIES];
-    // Last minute-key (hour*60+min) at which each entry fired. 0xFFFF = never.
+    // Minute-key (wday*1440 + hour*60 + min) at which each entry fired, within the
+    // current minute only (see tick()). 0xFFFF = not fired this minute.
     uint16_t      _lastFiredMin[SCHED_MAX_ENTRIES] = {
         0xFFFF,0xFFFF,0xFFFF,0xFFFF,0xFFFF,
         0xFFFF,0xFFFF,0xFFFF,0xFFFF,0xFFFF
     };
+    uint16_t      _lastTickMin = 0xFFFF;   // minute-key of the last tick() call
 };

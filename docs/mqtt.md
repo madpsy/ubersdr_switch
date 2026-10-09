@@ -45,9 +45,10 @@ curl -X POST -H "Content-Type: application/json" \
 | `prefix` | string | `""` | Topic prefix. Empty → `uberant/<hostname>` |
 | `retain` | bool | `true` | Publish state/availability messages as retained |
 | `commands` | bool | `false` | Subscribe to command topics (see below) |
+| `discovery` | bool | `false` | Tasmota discovery + Tasmota `POWER<n>` commands (see below) |
 
-Config changes take effect **immediately** — the client reconnects with the new settings
-without a reboot.
+Config changes take effect **immediately** — the client drops its session and reconnects
+with the new settings without a reboot.
 
 ---
 
@@ -160,9 +161,11 @@ Enable with `"commands": true`. The device subscribes to these topics on connect
 
 | Topic | Payload | Effect |
 |-------|---------|--------|
-| `<prefix>/set` | `0`…`7` \| `up` \| `down` \| `ground` | Select antenna / step |
+| `<prefix>/set` | `0`…`7` \| `up` \| `down` \| `ground` | Select antenna / step (ignored while locked) |
 | `<prefix>/max/set` | `0`…`7` | Set max antennas |
 | `<prefix>/name/set` | `{"position":N,"name":"…"}` | Set/clear a port name |
+| `<prefix>/display` | `{"text":"…","duration":N,"align":"left"\|"right"\|"center"}` | Show a message on the OLED (`duration` 1–60 s, default 1) |
+| `<prefix>/lock` | `lock` \| `unlock` \| `toggle` (also `true`/`false`, `1`/`0`) | Lock or unlock antenna selection |
 | `<prefix>/restart` | any | Reboot the device |
 
 ### Examples
@@ -189,6 +192,50 @@ mosquitto_pub -h $BROKER -t "$PREFIX/name/set" -m '{"position":2,"name":"40m Dip
 # Reboot
 mosquitto_pub -h $BROKER -t "$PREFIX/restart" -m "1"
 ```
+
+---
+
+## Tasmota discovery (optional)
+
+Enable with `"discovery": true` (or **Settings → MQTT → Tasmota discovery**). The switch
+then also speaks enough of [Tasmota](https://github.com/arendst/Tasmota)'s MQTT protocol
+to be found and driven by anything that understands a Tasmota relay board: Home
+Assistant's Tasmota integration and TasmoManager.
+Every topic, field and payload follows the Tasmota source (`xdrv_12_discovery.ino`,
+`xdrv_02_9_mqtt.ino`, `support_tasmota.ino`, `support_command.ino`).
+
+- Each antenna port `1…max` is one Tasmota relay. The relays are **interlocked**: turning
+  one on turns the others off (the 74HCT138 does this in hardware anyway).
+- Turning the selected port **off** selects **GROUND**.
+- Topic `<t>` = `uberant_<last 6 MAC hex digits>` (Tasmota's `PROJECT "_%06X"`), full
+  topic `%prefix%/%topic%/`, prefixes `cmnd` / `stat` / `tele`.
+- POWER commands are accepted whenever discovery is on; they do **not** need `commands`.
+- The lock blocks POWER changes the way Tasmota's `PowerLock` does: the state is reported,
+  unchanged.
+
+| Topic | Retained | Payload |
+|-------|----------|---------|
+| `tasmota/discovery/<MAC>/config` | yes | Discovery JSON: relays (`rl`), port names (`fn`), topic (`t`) |
+| `tasmota/discovery/<MAC>/sensors` | yes | `{"sn":{"Time":"…"},"ver":1}` |
+| `tele/<t>/LWT` | yes | `Online` / `Offline` (the broker's last will) |
+| `stat/<t>/RESULT` + `stat/<t>/POWER<n>` | no | `{"POWER3":"ON"}` + `ON` — on every change, OFF before ON |
+| `tele/<t>/STATE` | no | State JSON with `POWER<n>`, on connect and every 300 s |
+
+| Command topic | Payload | Effect |
+|---------------|---------|--------|
+| `cmnd/<t>/POWER<n>` | `ON` `OFF` `TOGGLE` `1` `0` `2` | Select / deselect port n |
+| `cmnd/<t>/POWER<n>` | empty | Report port n |
+| `cmnd/<t>/POWER0` | `OFF` | GROUND |
+| `cmnd/<t>/STATE` | — | State JSON on `stat/<t>/RESULT` |
+| `cmnd/<t>/STATUS` | `11` | `stat/<t>/STATUS11` `{"StatusSTS":{…}}` |
+
+Renaming a port or changing the max republishes the discovery. Turning discovery off
+withdraws it (empty retained messages, as Tasmota's `SetOption19 1` does).
+
+> **One last will.** An MQTT session carries a single will. With discovery on it is
+> Tasmota's `tele/<t>/LWT` `Offline`, so Tasmota consumers see the switch drop.
+> `<prefix>/availability` is still published `online` on connect and `offline` on a
+> clean reconfigure, but the broker no longer publishes it if the switch drops unexpectedly.
 
 ---
 

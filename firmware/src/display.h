@@ -330,7 +330,10 @@ public:
                 } else {
                     lw = (int)lines[i].length() * 6 * opt.defSize;
                 }
-                if (lw > OLED_W) { allFit = false; break; }
+                // The last option (default size 1) always takes the message: a line still
+                // too wide there is cut with '>' below. (Rejecting it here meant the whole
+                // message fell to the one-line fallback and lost every other line.)
+                if (lw > OLED_W && !(opt.font == nullptr && opt.defSize == 1)) { allFit = false; break; }
             }
             if (!allFit) continue;
 

@@ -6,7 +6,7 @@
 // successful sync, and all timestamp helpers return "" / 0 until then.
 //
 // Usage:
-//   g_ntp.begin("pool.ntp.org", 123);
+//   g_ntp.begin(NTP_HOST_DEFAULT, 123);
 //   g_ntp.loop();                        // call from loop()
 //   if (g_ntp.synced()) Serial.println(g_ntp.isoNow());
 
@@ -14,6 +14,7 @@
 
 #include <Arduino.h>
 #include <time.h>
+#include "config.h"
 #include "debuglog.h"
 
 static const uint32_t NTP_RESYNC_MS    = 3600000UL;  // re-sync every 1 hour
@@ -24,7 +25,7 @@ class Ntp {
 public:
     // Start SNTP with the given host and port. Safe to call again to reconfigure.
     void begin(const char *host, uint16_t port = 123) {
-        if (!host || !host[0]) host = "pool.ntp.org";
+        if (!host || !host[0]) host = NTP_HOST_DEFAULT;
         _host = String(host);
         _port = port;
         _synced = false;
